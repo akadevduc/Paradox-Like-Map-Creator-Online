@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WHAT IF MAP CREATOR</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="imgs/icon2.ico"> 
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+</head>
+<body id="bodi">
+
+    <nav id="toolbar" class="fixed-top navbar">
+
+        <!-- fila superior-->
+        <div class="toolbar-row toolbar-row--bottom toolbar">
+
+            <button class="btn-toolbar" id="clearButton">Clear Map</button>
+            <button class="btn-toolbar" id="saveButton">Save Map</button>
+            <button class="btn-toolbar" id="loadButton">Load Map</button>
+
+            <div class="input_container">
+                <label for="loadCustomMap" class="btn-toolbar">Browse Files</label>
+                <input id="loadCustomMap" style="display:none;" type="file">
+            </div>
+
+            <button class="btn-toolbar" id="saveIMGButton">Save IMG</button>
+            
+
+            <button class="btn-toolbar" id="OptionsButton">Options</button>
+
+        </div>
+
+        <!-- fila inferior-->
+        <div class="toolbar-row toolbar-row--top">
+            <!-- PINCEL + LISTA DE PAÍSES -->
+            <div class="dropdown" id="brushDropdownWrapper">
+                <button class="btn btn-secondary dropdown-toggle d-flex align-items-center gap-2"
+                        id="countryDropdown"
+                        data-bs-toggle="dropdown"
+                        data-bs-auto-close="outside"
+                        aria-expanded="false">
+                    <span class="brush-swatch" id="brushColorDisplay"></span>
+                    <span class="text-nowrap">Color</span>
+                </button>
+
+                <div class="dropdown-menu country-panel p-0" aria-labelledby="countryDropdown">
+                    <div class="country-panel__header">
+                        <span>Países</span>
+                        <div class="country-new-color">
+                            <label for="brushColor" class="country-new-label">Nuevo color:</label>
+                            <input type="color" id="brushColor" value="#ff0000" title="Elegir nuevo color de pincel" />
+                            <button class="btn btn-xs btn-outline-light" id="addCountryBtn">+ Agregar</button>
+                        </div>
+                    </div>
+                    <ul class="country-list" id="countryList">
+                        <li class="country-empty">Todavía no hay países. Pintá una provincia para empezar.</li>
+                    </ul>
+                </div>
+            </div>
+
+
+
+            <button class="btn-toolbar" id="ConfirmEditButton">Confirmar</button>
+            <button class="btn-toolbar" id="CancelEditButton">Cancelar</button>
+
+            <form class="radio-group">
+                <input type="radio" id="FillCountry" name="choice" value="1">
+                <label class="btn-toolbar" for="FillCountry">Fill Country</label><br>
+
+                <input type="radio" id="FillContinuity" name="choice" value="2">
+                <label class="btn-toolbar" for="FillContinuity">Fill Continuity</label>
+            </form>
+            
+        </div>
+    </nav>
+
+    <div id="optionsPopup" class="popup hidden">
+        <div class="popup-content">
+            <h3>Opciones</h3>
+
+            <button class="btn-toolbar" id="ChangeToGFMButton">Change to GFM</button>
+            <span class="text-nowrap">Color del Agua:</span>
+            <input type="color" id="waterColor" value="#9591df">
+            <div class="opacity-control">
+                <span class="text-nowrap">Opacidad:</span>
+                <input type="range" id="opacitySlider" min="0" max="100" value="70" step="5" class="opacity-slider" />
+                <span id="opacityLabel" class="opacity-label">70%</span>
+            </div>
+            <button class="btn-toolbar" id="WrapButton">Wrap</button>
+            
+            <button class="btn-toolbar" id="closePopup">Cerrar</button>
+        </div>
+    </div>
+
+    <div class="sidebar">
+        <nav>
+            <ul>
+                <li>
+                    <a href="#" id="SelectButton" title="Seleccionar">
+                        <img src="imgs/hand.png" alt="Selección">
+                    </a>
+                </li>
+                <li>
+                    <a href="#" id="PaintButton" title="Pintar">
+                        <img src="imgs/Icon_scheme_convert_to_witchcraft.png" alt="Pincel">
+                    </a>
+                </li>
+                <li>
+                    <a href="#" id="EraserButton" title="Borrar">
+                        <img src="imgs/120px-Invention_flamethrowers.png" alt="Borrar">
+                    </a>
+                </li>
+                <li>
+                    <a href="#" id="InkWellButton" title="Tintero">
+                        <img src="imgs/Diplomacy_declare_interest.png" alt="Tintero">
+                    </a>
+                </li>
+                <li>
+                    <a href="#" id="LassoButton" title="Lazo">
+                        <img src="imgs/Huntperson_camp_officer.png" alt="Lazo">
+                    </a>
+                </li>
+                <li>
+                    <a href="#" id="BucketButton" title="Balde">
+                        <img src="imgs/120px-Pop_bureaucrats.png" alt="Balde">
+                    <!--<img src="imgs/120px-Goods_porcelain.png" alt="Balde">-->
+                    </a>
+                </li>
+                <li>
+                    <a href="#" id="CutButton" title="Recortar">
+                        <img src="imgs/120px-Struggle_persia_phase_stabilisation.png" alt="Recortar">
+                    </a>
+                </li>
+                <li>
+                    <a href="#" id="EditorModeButton" title="Modo Editor">
+                        <img src="imgs/Activity_survey.png" alt="EditorMode">
+                    </a>
+                </li>
+                <li>
+                    <a href="#" title="Placeholder">
+                        <img src="imgs/placeholder.png" alt="Placeholder">
+                    </a>
+                </li>
+
+            </ul>
+        </nav>
+    </div>
+
+    <div class="sidebar othersidebar">
+    <nav>
+        <ul>
+            <!-- Sección País -->
+            <li class="info-section">
+                <span class="info-section__title">País</span>
+
+                <!-- Bandera -->
+                <div class="flag-wrapper" style="margin-bottom: 10px;">
+                    <img id="CountryFlagPreview" src="imgs/placeholder.png" alt="Bandera">
+                    <input id="CountryFlag" type="file" accept="image/*">
+                </div>
+
+                <div class="info-row">
+                    <span class="info-label">Nombre</span>
+                    <input id="CountryName" class="info-input" type="text" placeholder="—">
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Color</span>
+                    <input id="CountryColor" type="color" class="country-color-picker">
+                </div>
+            </li>
+
+            <!-- Sección Provincia -->
+            <li class="info-section">
+                <span class="info-section__title">Provincia</span>
+
+                <div class="info-row">
+                    <span class="info-label">ID</span>
+                    <span id="ProvinceId" class="info-value">—</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Nombre</span>
+                    <input id="ProvinceName" class="info-input" type="text" placeholder="—">
+                </div>
+                <div class="info-row">
+                    <span class="info-label">RGO</span>
+                    <input id="ProvinceRGO" class="info-input" type="text" placeholder="—">
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Población</span>
+                    <input id="ProvincePopulation" class="info-input" type="text" placeholder="—">
+                </div>
+            </li>
+
+            <!-- Imágenes de guía -->
+            <li class="info-section">
+                <span class="info-section__title">Imágenes de Guía</span>
+                <div class="guide-grid">
+                    <img src="imgs/placeholder.png" alt="">
+                    <img src="imgs/placeholder.png" alt="">
+                    <img src="imgs/placeholder.png" alt="">
+                </div>
+            </li>
+
+            <!-- Vista previa del mapa -->
+            <li class="info-section">
+                <span class="info-section__title">Vista Previa</span>
+                <canvas id="mapPreview"></canvas>
+            </li>
+
+        </ul>
+    </nav>
+</div>
+
+    <canvas id="mapCanvas" width="800" height="600"></canvas>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <script type="module" src="main.js"></script>
+</body>
+</html>

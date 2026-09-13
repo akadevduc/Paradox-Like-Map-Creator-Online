@@ -71,7 +71,7 @@
                 <input type="radio" id="FillContinuity" name="choice" value="2">
                 <label class="btn-toolbar" for="FillContinuity">Fill Continuity</label>
             </form>
-            
+
         </div>
     </nav>
 
@@ -81,7 +81,7 @@
 
             <button class="btn-toolbar" id="ChangeToGFMButton">Change to GFM</button>
             <span class="text-nowrap">Color del Agua:</span>
-            <input type="color" id="waterColor" value="#9591df">
+            <input type="color" id="waterColor" class="water-color-input" value="#9591df">
             <div class="opacity-control">
                 <span class="text-nowrap">Opacidad:</span>
                 <input type="range" id="opacitySlider" min="0" max="100" value="70" step="5" class="opacity-slider" />
@@ -168,6 +168,13 @@
                     <span class="info-label">Color</span>
                     <input id="CountryColor" type="color" class="country-color-picker">
                 </div>
+                <div class="info-row">
+                    <span class="info-label">Bloqueado</span>
+                    <label class="lock-toggle">
+                        <input id="CountryLocked" type="checkbox">
+                        <span class="lock-slider"></span>
+                    </label>
+                </div>
             </li>
 
             <!-- Sección Provincia -->
@@ -189,6 +196,10 @@
                 <div class="info-row">
                     <span class="info-label">Población</span>
                     <input id="ProvincePopulation" class="info-input" type="text" placeholder="—">
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Es agua</span>
+                    <input id="ProvinceIsWater" type="checkbox">
                 </div>
             </li>
 

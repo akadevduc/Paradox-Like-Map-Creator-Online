@@ -1,12 +1,12 @@
 import * as utils from "./utils.js";
+import { timerStart, timerEnd }                             from "./utils.js";
 import { initCamera }                                       from "./camera.js";
 import { buildProvinceData, createBaseMap,
-         addBorders, renderFromBase,
-         rebuildOverlayCanvas, loadWaterLayers }            from "./provinces.js";
+         addBorders, renderFromBase }            from "./provinces.js";
 import { initCountriesFromProvinceData }                    from "./countries.js";
 import { initUI, ToolStates }                              from "./ui.js";
-import { state, overlayLayers, provinceData,
-         colorToProvince, provincePixels,
+import { state, provinceData,
+         colorToProvince,
          nextProvinceId, bumpProvinceId }                   from "./state.js";
 import { initEditor }                                       from "./tijerear.js";
 import { initMapEditor, toggleMapEditor,
@@ -19,16 +19,13 @@ export const canvas       = document.getElementById("mapCanvas");
 export const ctx          = canvas.getContext("2d");
 
 export const logicCanvas  = document.createElement("canvas");
-export const logicCtx     = logicCanvas.getContext("2d");
+export const logicCtx     = logicCanvas.getContext("2d", { willReadFrequently: true });
 
 export const canvasRender = document.createElement("canvas");
-export const ctxRender    = canvasRender.getContext("2d");
+export const ctxRender    = canvasRender.getContext("2d", { willReadFrequently: true });
 
 export const waterCanvas  = document.createElement("canvas");
-export const waterCtx     = waterCanvas.getContext("2d");
-
-export const overlayCanvas = document.createElement("canvas");
-export const overlayCtx    = overlayCanvas.getContext("2d");
+export const waterCtx     = waterCanvas.getContext("2d", { willReadFrequently: true });
 
 // =======================
 // IMAGEN BASE
@@ -45,19 +42,13 @@ img.onload = async () => {
     logicCanvas.width  = img.width;
     logicCanvas.height = img.height;
 
-    overlayCanvas.width  = img.width;
-    overlayCanvas.height = img.height;
-
-    for (const layer of overlayLayers) {
-        const response = await fetch(layer.src);
-        const blob = await response.blob();
-        layer.img = await createImageBitmap(blob);
-        console.log(layer.name, layer.img.width, layer.img.height); // ← verificar
-    }
+    // Fijar dimensiones de canvasRender para que buildCanvasRender funcione
+    canvasRender.width  = img.width;
+    canvasRender.height = img.height;
 
     if (!uiInitialized) {
         initCamera(canvas, utils);
-        initUI(img, canvas, logicCanvas, overlayCanvas, setup);
+        initUI(img, canvas, logicCanvas, setup);
         initEditor();
         initMapEditor();
         uiInitialized = true;
@@ -70,37 +61,56 @@ img.onload = async () => {
 // SETUP
 // =======================
 export async function setup(jsonSrc, legacy = false) {
+    timerStart("setup");
 
-    // 1. Capas de relieve
-    await Promise.all(overlayLayers.map(layer => new Promise(resolve => {
-        const image = new Image();
-        image.onload  = () => { layer.img = image; resolve(); };
-        image.onerror = () => { console.warn("No se pudo cargar:", layer.src); resolve(); };
-        image.src = layer.src;
-    })));
-    rebuildOverlayCanvas();
+    // Inicializar provincePixelIndices (Uint32Array plano: posición = índice de píxel, valor = ID de provincia)
+    const mapW = logicCanvas.width;
+    const mapH = logicCanvas.height;
+    state.provincePixelIndices = new Uint32Array(mapW * mapH);
 
-    // 2. Dibujar mapa logico
+    // Step 1: Dibujar mapa inmediatamente — el usuario ve el fondo al instante
     logicCtx.drawImage(img, 0, 0);
 
-    // 3. Provincias
+    // Step 2: Cargar provincias y datos básicos primero (síncronos)
+    // Esto asegura que colorToProvince y provinceData estén disponibles
+    // antes de renderizar, evitando provincias transparentes.
     state.loaded = await loadMapProvinces(jsonSrc);
     buildProvinceData();
 
-    // 4. Capas de agua
-    await loadWaterLayers();
+    // Marcar que ya venimos de un loadMapProvinces para no repetirlo en background
+    state.provincesPreloaded = true;
 
+    // Step 2.5: buildProvinceData ahora llena provincePixelIndices directamente
+    // en buildProvinceData (se inicializó arriba como Uint32Array).
 
-    // 5. Render inicial
+    // Step 3: Crear imágenes base con los provinces ya poblados
     state.baseCleanImageData = createBaseMap();
-    state.baseImageData = new ImageData(
+    state.baseCleanImageData = new ImageData(
         new Uint8ClampedArray(state.baseCleanImageData.data),
         state.baseCleanImageData.width,
         state.baseCleanImageData.height
     );
+    renderFromBase();
 
-    // 6. Lista de paises
-    initCountriesFromProvinceData();
+    // Step 4: Cargar datos de provincias EN BACKGROUND (sin provincias de agua)
+    // Los ríos/lagos se generarán desde una función externa usando una imagen base
+    setTimeout(async () => {
+        try {
+            timerStart("lazy-provinces");
+            addBorders();
+            initCountriesFromProvinceData();
+            timerEnd("lazy-provinces");
+
+            // Marcar dirty para reconstruir canvasRender con los datos completos
+            state.canvasDirty = true;
+            renderFromBase();
+            console.log("Datos de provincias cargados en background");
+        } catch (err) {
+            console.error("Error loading province data in background:", err);
+        }
+    }, 100); // Pequeño delay para que el primer render sea visible
+
+    timerEnd("setup");
 }
 
 // =======================
@@ -143,7 +153,8 @@ export async function loadMapProvinces(file = "provinces.json") {
 export function resetMapState() {
     Object.keys(colorToProvince).forEach(k => delete colorToProvince[k]);
     Object.keys(provinceData).forEach(k    => delete provinceData[k]);
-    Object.keys(provincePixels).forEach(k  => delete provincePixels[k]);
+    // provincePixelIndices es un Uint32Array, no un Map; reinicializar a null
+    state.provincePixelIndices = null;
     state.selectedProvince    = null;
     state.highlightImageData  = null;
 }

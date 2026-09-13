@@ -1,14 +1,17 @@
-import { state, overlayLayers, waterLayers, provinceData,
-         colorToProvince, provincePixels, waterColor, 
-         brushColor, colorInicial, opacityStep, 
-         provinceMapOpacity, setProvinceMapOpacity}      from "./state.js";
+import { state, waterLayers, provinceData,
+         colorToProvince, waterColor,
+         brushColor, colorInicial, opacityStep,
+         provinceMapOpacity, setProvinceMapOpacity,
+         setWaterColor, waterColorListeners }      from "./state.js";
 import { createBaseMap, addBorders,
-         renderFromBase, rebuildOverlayCanvas,
+         renderFromBase,
          rebuildWaterLayer, setProvinceOpacity }         from "./provinces.js";
 import { registerCountry, selectCountryColor,
-         renderCountryList, countries, rgbToHex }                             from "./countries.js";
-import { loadMapProvinces, resetMapState, overlayCtx, 
-         waterCtx, waterCanvas, setup, canvas}           from "./main.js";
+         renderCountryList, countries, rgbToHex,
+         isCountryLocked }                             from "./countries.js";
+import { loadMapProvinces, resetMapState,
+         waterCtx, waterCanvas, setup, canvas,
+         logicCanvas }           from "./main.js";
 import { toggleScissorMode, initEditor, setPathCompleteCallback, processCutPath, paintAlongPath }                  from "./tijerear.js";
 import { initMapEditor, toggleMapEditor,
          floodFill, confirmEdit, cancelEdit}             from "./editor.js";
@@ -50,36 +53,52 @@ export const bucketMode = {
     FillContinuity: { active: false }
 }
 
+// Sincronizar todos los inputs de color de agua con el valor centralizado
+function syncWaterColorInputs() {
+    const hex = rgbToHex(waterColor.rgb);
+    document.querySelectorAll('.water-color-input').forEach(el => { el.value = hex; });
+}
+waterColorListeners.push(syncWaterColorInputs);
+
 function toggleToolState(activeState, buttonElement = null) {
     const isActive = !activeState.active;
+
     document.querySelectorAll('.sidebar a').forEach(a => a.classList.remove('active'));
-    
-    Object.values(ToolStates).forEach(ToolStates => ToolStates.active = false);
+    Object.values(ToolStates).forEach(ts => { ts.active = false; });
+
     activeState.active = isActive;
     canvas.style.cursor = "default";
-    state.pinnedProvince = null; // ← limpiar selección al cambiar herramienta
+    state.pinnedProvince = null;
 
     if (isActive && buttonElement) {
         buttonElement.classList.add('active');
+    } else if (buttonElement) {
+        buttonElement.classList.remove('active');
     }
     renderFromBase();
-    console.log("toggleToolState:",ToolStates);
+    console.log("toggleToolState:", ToolStates);
 }
 
 function toggleToolStateInside(activeState, buttonElement = null) {
     const isActive = !activeState.active;
     document.querySelectorAll('.sidebar a').forEach(a => a.classList.remove('active'));
 
-    activeState.active = isActive;    
+    Object.values(ToolStates).forEach(ts => { ts.active = false; });
+
+    activeState.active = isActive;
     state.pinnedProvince = null;
 
-    buttonElement.classList.add('active');
+    if (isActive && buttonElement) {
+        buttonElement.classList.add('active');
+    } else if (buttonElement) {
+        buttonElement.classList.remove('active');
+    }
     renderFromBase();
 }
 
 // initUI se llama desde main.js una vez que img está cargada
 // Recibe referencias que de otro modo crearían dependencia circular
-export function initUI(img, canvas, logicCanvas, overlayCanvas, setupFn) {
+export function initUI(img, canvas, logicCanvas, setupFn) {
 
     // ── Opacidad ──
     const slider = document.getElementById('opacitySlider');
@@ -125,15 +144,21 @@ export function initUI(img, canvas, logicCanvas, overlayCanvas, setupFn) {
     const swatch = document.getElementById('brushColorDisplay');
     if (swatch) swatch.style.backgroundColor = '#ff0000';
 
-    // ── Color del agua ──
+    // ── Color del agua (centralizado) ──
     waterColorPicker.addEventListener("input", e => {
         const hex = e.target.value;
-        waterColor.rgb = [
+        setWaterColor([
             parseInt(hex.slice(1, 3), 16),
             parseInt(hex.slice(3, 5), 16),
             parseInt(hex.slice(5, 7), 16),
-        ];
+        ]);
         rebuildWaterLayer();
+        state.baseCleanImageData = createBaseMap();
+        state.baseCleanImageData = new ImageData(
+            new Uint8ClampedArray(state.baseCleanImageData.data),
+            state.baseCleanImageData.width,
+            state.baseCleanImageData.height
+        );
         renderFromBase();
     });
 
@@ -185,22 +210,14 @@ export function initUI(img, canvas, logicCanvas, overlayCanvas, setupFn) {
         resetMapState();
 
         logicCanvas.getContext("2d").clearRect(0, 0, logicCanvas.width, logicCanvas.height);
-        overlayCanvas.width  = img.width;
-        overlayCanvas.height = img.height;
 
         if (state.legacy) {
-            overlayLayers.forEach(l => { l.img = null; l.visible = false; });
-            overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-
             waterLayers.forEach(l => { l.img = null; l.visible = false; });
             waterCtx.clearRect(0, 0, waterCanvas.width, waterCanvas.height);
         } else {
-            overlayLayers.forEach(l => { l.visible = true; });
-
             waterLayers.forEach(l => { l.visible = true; });
         }
 
-        rebuildOverlayCanvas();
         await setupFn(state.jsonSrc);
         console.log("canvas size después de setup:", canvas.width, canvas.height);
         //initEditor();
@@ -280,7 +297,10 @@ export function initUI(img, canvas, logicCanvas, overlayCanvas, setupFn) {
         toggleMapEditor();
     });
     document.getElementById("ConfirmEditButton").addEventListener("click", confirmEdit);
-    document.getElementById("CancelEditButton").addEventListener("click", cancelEdit);    
+    document.getElementById("CancelEditButton").addEventListener("click", cancelEdit);
+
+    // Sincronizar inputs de color de agua al iniciar
+    syncWaterColorInputs();
 
     document.getElementById("WrapButton").addEventListener("click", () => {
         state.wrapHorizontal = !state.wrapHorizontal;
@@ -356,9 +376,9 @@ function applyProvinceData(data) {
 
 function exportFullMap(filename = "map.png") {
     const exportCanvas = document.createElement("canvas");
-    exportCanvas.width  = state.baseImageData.width;
-    exportCanvas.height = state.baseImageData.height;
-    exportCanvas.getContext("2d").putImageData(state.baseImageData, 0, 0);
+    exportCanvas.width  = state.baseCleanImageData.width;
+    exportCanvas.height = state.baseCleanImageData.height;
+    exportCanvas.getContext("2d").putImageData(state.baseCleanImageData, 0, 0);
 
     const a = document.createElement("a");
     a.href     = exportCanvas.toDataURL("image/png");

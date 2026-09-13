@@ -1,6 +1,6 @@
 import { canvas, ctx, logicCanvas, logicCtx }  from "./main.js";
 import { state, colorToProvince, provinceData,
-         provincePixels, bumpProvinceId,
+         bumpProvinceId,
          colorInicial }                        from "./state.js";
 import { camera }                              from "./camera.js";
 import { buildBorderCache, createBaseMap,
@@ -74,17 +74,64 @@ export function toggleMapEditor() {
 // Muestra los colores únicos del logicCanvas directamente,
 // sin los colores de pintura. Así el usuario ve las formas
 // exactas de cada provincia mientras edita.
+// Incluye las provincias de agua (ríos/lagos) teñidas con
+// su color de editor (verde/violeta).
 // =======================
 
+// Cache del mapa lógico con provincias de agua ya pintadas
+let editorBaseCanvas = null;
+let editorBaseDirty = true;
+
+export function invalidateEditorBase() { editorBaseDirty = true; }
+
+function buildEditorBase() {
+    if (!editorBaseDirty && editorBaseCanvas) return;
+    editorBaseDirty = false;
+
+    editorBaseCanvas = document.createElement("canvas");
+    editorBaseCanvas.width  = logicCanvas.width;
+    editorBaseCanvas.height = logicCanvas.height;
+    const ec = editorBaseCanvas.getContext("2d");
+    ec.drawImage(logicCanvas, 0, 0);
+
+    // Teñir provincias de agua con su color de editor
+    // Usamos provincePixelIndices plano (Uint32Array) en lugar de provincePixels Map<id, [indices]>
+    // Valor en provincePixelIndices = ID de provincia (0 = océano). Para pintar agua, filtramos
+    // por provinceData.isWater === true y ponemos el editorColor.
+    const imgData = ec.getImageData(0, 0, logicCanvas.width, logicCanvas.height);
+    const d = imgData.data;
+    if (state.provincePixelIndices) {
+        const width = logicCanvas.width;
+        const height = logicCanvas.height;
+        for (let py = 0; py < height; py++) {
+            for (let px = 0; px < width; px++) {
+                const pixelIdx = py * width + px;
+                const provId = state.provincePixelIndices[pixelIdx];
+                if (provId === 0) continue; // océano, no pintar
+                const pd = provinceData[provId];
+                if (!pd || !pd.isWater || !pd.editorColor) continue;
+                const i = (py * width + px) * 4;
+                const [r, g, b] = pd.editorColor;
+                d[i]     = r;
+                d[i + 1] = g;
+                d[i + 2] = b;
+            }
+        }
+    }
+    ec.putImageData(imgData, 0, 0);
+}
+
 export function renderLogicView() {
+    buildEditorBase();
+
     ctx.fillStyle = "#0e0e18";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(
-        logicCanvas,
+        editorBaseCanvas,
         camera.x, camera.y,
-        canvas.width  / camera.zoom, 
+        canvas.width  / camera.zoom,
         canvas.height / camera.zoom,
         0, 0,
         canvas.width, canvas.height
@@ -263,60 +310,30 @@ export function confirmEdit() {
         paintColor: [...colorInicial],
         isWater: false,
     };
-    provincePixels[newId] = [];
 
-    // Antes del loop — convertir provincias afectadas a Set para O(1)
-    const affectedSets = new Map();
-
+    // Marcar píxeles nuevos en provincePixelIndices (Uint32Array plano)
+    // Cada posición = índice de píxel (i/4), valor = ID de provincia
     for (const key of drawnPixels) {
         const [x, y] = key.split(",").map(Number);
         const i      = (y * width + x) * 4;
+        const pixelIdx = i / 4; // índice en el Uint32Array
 
-        const oldColorKey = (data[i] << 16) | (data[i + 1] << 8) | data[i + 2];
-        const oldId       = colorToProvince[oldColorKey];
-
-        if (oldId && oldId !== newId && provincePixels[oldId]) {
-            // Convertir a Set la primera vez que encontramos esta provincia
-            if (!affectedSets.has(oldId)) {
-                affectedSets.set(oldId, new Set(provincePixels[oldId]));
-            }
-            affectedSets.get(oldId).delete(i);
+        // Marcar como nueva provincia
+        if (state.provincePixelIndices) {
+            state.provincePixelIndices[pixelIdx] = newId;
         }
-
-        data[i]     = newColor[0];
-        data[i + 1] = newColor[1];
-        data[i + 2] = newColor[2];
-        data[i + 3] = 255;
-        provincePixels[newId].push(i);
     }
 
-    // Reconvertir Sets a arrays
-    for (const [id, set] of affectedSets) {
-        provincePixels[id] = Array.from(set);
-    }
-
-    for(const key of drawnPixels){
-        const [x, y] = key.split(",").map(Number);
-        const i      = (y * width + x) * 4;
-
-        const oldColorKey = (data[i] << 16) | (data[i + 1] << 8) | data[i + 2];
-        const oldId       = colorToProvince[oldColorKey];
-        if (oldId && oldId !== newId && provincePixels[oldId]) {
-            provincePixels[oldId] = provincePixels[oldId].filter(idx => idx !== i);
-        }
-
-        data[i]     = newColor[0];
-        data[i + 1] = newColor[1];
-        data[i + 2] = newColor[2];
-        data[i + 3] = 255;
-
-        provincePixels[newId].push(i);
-    }
-
-    logicCtx.putImageData(logicImageData, 0, 0);
+    // Limpiar píxeles que pertenecían a la provincia vieja (si la hubo)
+    // Buscamos píxeles en la región que ahora ya no pertenecen a la nueva provincia
+    // (esto es más sencillo: recorremos todos los drawnPixels y quitamos referencias
+    // a la provincia anterior, pero con el array plano solo actualizamos el valor)
+    // Nota: como solo guardamos el último ID por píxel, si un píxel fue repintado,
+    // provincePixelIndices ya refleja el nuevo ID. No necesitamos "borrar" explícitamente
+    // ya que la próxima vez que se lea, el valor ya será el correcto.
 
     state.baseCleanImageData = createBaseMap();
-    state.baseImageData = new ImageData(
+    state.baseCleanImageData = new ImageData(
         new Uint8ClampedArray(state.baseCleanImageData.data),
         state.baseCleanImageData.width,
         state.baseCleanImageData.height

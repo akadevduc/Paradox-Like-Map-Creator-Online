@@ -2,7 +2,7 @@ import { state, renderThrottle, brushColor, ZoomStep, MaxZoom, MinZoom}  from ".
 import { renderFromBase, renderHighlight, fillContinuity }     from "./provinces.js";
 import { renderLogicView, redrawPreview } from "./editor.js";
 import { ToolStates, bucketMode } from "./ui.js";
-import { rgbToHex, changeCountryColor, showProvinceAndCountryInfo } from "./countries.js";
+import { rgbToHex, changeCountryColor, showProvinceAndCountryInfo, isCountryLocked } from "./countries.js";
 import { logicCanvas } from "./main.js";
 
 
@@ -110,11 +110,20 @@ export function initCamera(canvas, utils) {
         const world = screenToWorld(e.offsetX, e.offsetY, canvas);
         const pixel = logicCtx_ref.getImageData(Math.floor(world.x), Math.floor(world.y), 1, 1).data;
         const key   = (pixel[0] << 16) | (pixel[1] << 8) | pixel[2];
-        const provinceId = colorToProvince_ref?.[key];
+        // Pixel transparente = océano → buscar por key -1
+        const provinceId = pixel[3] === 0
+            ? colorToProvince_ref?.[-1]
+            : colorToProvince_ref?.[key];
+        console.log("[CLICK] pixel alpha:", pixel[3], "key:", key, "provinceId:", provinceId);
         if (!provinceId) return;
 
         if(ToolStates.inkweel.active)
         {
+            if (isCountryLocked(provinceId)) {
+                console.log("[INKWEEL] País bloqueado - provinciaId:", provinceId, "locked:", isCountryLocked(provinceId));
+                return;
+            }
+
             const color = provinceData_ref[provinceId].paintColor;
             brushColor.rgb = [...color];
 
@@ -126,6 +135,11 @@ export function initCamera(canvas, utils) {
 
         if(ToolStates.bucket.active)
         {
+            if (isCountryLocked(provinceId)) {
+                console.log("[BUCKET] País bloqueado - provinciaId:", provinceId, "locked:", isCountryLocked(provinceId));
+                return;
+            }
+
             if (ToolStates.editor.active) {
                 import("./editor.js").then(({ floodFill }) => {
                     floodFill(e.offsetX, e.offsetY);
@@ -142,6 +156,7 @@ export function initCamera(canvas, utils) {
 
         if (ToolStates.select.active)
         {
+            // Selección siempre permitida (incluso agua/países bloqueados)
             if (state.pinnedProvince === provinceId) {
                 state.pinnedProvince = null;
                 renderFromBase();
@@ -159,7 +174,10 @@ export function initCamera(canvas, utils) {
                 import("./countries.js").then(({ rgbToHex, registerCountry, selectCountryColor, renderCountryList }) => {
                     state.selectedProvince = provinceId;
 
-                    if (provinceData[provinceId]?.isOcean) return;
+                    if (isCountryLocked(provinceId)) {
+                        console.log("[PAINT] País bloqueado - provinciaId:", provinceId, "locked:", isCountryLocked(provinceId));
+                        return;
+                    }
 
                     provinceData[provinceId].paintColor = [...brushColor.rgb];
 
@@ -198,7 +216,10 @@ export function initCamera(canvas, utils) {
         const world = screenToWorld(e.offsetX, e.offsetY, canvas);
         const pixel = logicCtx_ref.getImageData(Math.floor(world.x), Math.floor(world.y), 1, 1).data;
         const key   = (pixel[0] << 16) | (pixel[1] << 8) | pixel[2];
-        const provinceId = colorToProvince_ref?.[key];
+        // Pixel transparente = océano → buscar por key -1
+        const provinceId = pixel[3] === 0
+            ? colorToProvince_ref?.[-1]
+            : colorToProvince_ref?.[key];
 
         if (!provinceId) { //                           si NO es una provincia válida
             if (state.selectedProvince !== null) { //   si había una provincia válida HLed antes
@@ -216,11 +237,20 @@ export function initCamera(canvas, utils) {
             return;
         }
 
-        //if (provinceData[provinceId]?.isOcean) return;
+        // El resaltado (hover) siempre está permitido, incluso en agua/países bloqueados.
+        // La EDICIÓN sí queda bloqueada vía isCountryLocked en cada herramienta.
 
         if (state.selectedProvince === provinceId) return; // no cambió, no rerenderizar
 
         state.selectedProvince = provinceId;
+
+        // En modo editor no usamos renderHighlight (reconstruye 500k px);
+        // solo refrescamos la vista lógica (drawImage barato).
+        if (ToolStates.editor.active) {
+            renderLogicView();
+            redrawPreview();
+            return;
+        }
 
         const toHighlight = [provinceId];
         if (state.pinnedProvince && state.pinnedProvince !== provinceId) {

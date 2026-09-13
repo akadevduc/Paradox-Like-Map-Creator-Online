@@ -5,7 +5,6 @@
 
 export const state = {
     // render
-    baseImageData:      null,
     baseCleanImageData: null,
     highlightImageData: null,
 
@@ -22,6 +21,18 @@ export const state = {
     jsonSrc: "provinces.json",
     legacy:  false,
     wrapHorizontal: false,
+
+    // Cache de contenido renderizado (solo se reconstruye si cambió)
+    canvasDirty:    true,        // ¿necesita rebuild del canvasRender?
+    cachedZoom:     1,
+    cachedCamX:     0,
+    cachedCamY:     0,
+    _cachedScaledCanvas: null,
+
+    // Píxeles por provincia: array plano Uint32 donde posición = índice de píxel,
+    // valor = ID de provincia dueña (0 = océano). width*height*4 bytes,
+    // vs la estructura Map<id, [Array<índices JS>]> que consumía 100-200 MB+.
+    provincePixelIndices: null,  // Uint32Array(width*height), initialized en setup()
 };
 
 // =======================
@@ -29,7 +40,6 @@ export const state = {
 // =======================
 export const colorToProvince = {};   // colorKey  -> provinceId
 export const provinceData    = {};   // id        -> { id, name, owner, paintColor, colorKey, isWater }
-export const provincePixels  = {};   // id        -> [índices de píxeles]
 export let   nextProvinceId  = 1;
 export function bumpProvinceId() { nextProvinceId++; return nextProvinceId - 1; }
 
@@ -37,9 +47,16 @@ export function bumpProvinceId() { nextProvinceId++; return nextProvinceId - 1; 
 // COLORES
 // =======================
 export const brushColor    = { rgb: [255, 0, 0] };   // objeto para poder mutar desde cualquier módulo
-export const colorResaltado = [40,  40,  40];
+export const colorResaltado = [40,  40,  40];          // intensidad del highlight
 export const colorInicial   = [190, 190, 190];
 export const waterColor     = { rgb: [129, 183, 218] };
+
+// Listeners para sincronizar todos los inputs de color de agua
+export const waterColorListeners = [];
+export function setWaterColor(rgb) {
+    waterColor.rgb = [rgb[0], rgb[1], rgb[2]];
+    waterColorListeners.forEach(fn => { try { fn(); } catch (e) { console.warn("waterColorListener error:", e); } });
+}
 
 // =======================
 // CONFIGURACIÓN
@@ -55,12 +72,8 @@ export let MinZoom  = 0.05;
 export let MaxZoom  = 50;
 
 // =======================
-// CAPAS
+// CAPAS DE AGUA
 // =======================
-export const overlayLayers = [
-    { name: "relieves", src: "maps/map_relieves.png", opacity: 1.0, visible: true, img: null },
-];
-
 export const waterLayers = [
     { name: "ríos",             src: "maps/water_rivers.png",         visible: true, img: null },
     { name: "lagos",            src: "maps/water_lakes.png",          visible: true, img: null },

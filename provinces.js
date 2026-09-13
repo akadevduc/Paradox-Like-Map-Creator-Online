@@ -1,15 +1,16 @@
 import{ canvas, ctx, logicCanvas, logicCtx,
         canvasRender, ctxRender,
-        waterCanvas, waterCtx,
-        overlayCanvas, overlayCtx }                  from "./main.js";
-import{ state, overlayLayers, waterLayers,
+        waterCanvas, waterCtx }                  from "./main.js";
+import{ state, waterLayers,
         waterColor, colorToProvince,
-        provinceData, provincePixels,
+        provinceData,
         colorInicial, colorResaltado,
         provinceMapOpacity, setProvinceMapOpacity,
         nextProvinceId, bumpProvinceId, brushColor }             from "./state.js";
-import{ camera }                                     from "./camera.js";
+import{ timerStart, timerEnd, memoryStart, memoryEnd, memoryReport } from "./utils.js";
+import{ countries, rgbToHex }                                         from "./countries.js";
 import{ ToolStates, updateMapPreview }                                from "./ui.js";
+import{ camera }                                                      from "./camera.js";
 
 // =======================
 // CANVAS PERSISTENTES
@@ -25,65 +26,36 @@ const borderCtx      = borderCanvas.getContext("2d");
 let borderCache = null;
 
 // =======================
-// CAPAS DE RELIEVE (overlay)
+// MEMORY TRACKING
 // =======================
-
-export function rebuildOverlayCanvas() {
-    /*
-    if (overlayCanvas.width === 0) return;
-    overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-    overlayCtx.imageSmoothingEnabled = true;
-    overlayCtx.imageSmoothingQuality = "high";
-    for (const layer of overlayLayers) {
-        if (!layer.visible || !layer.img) continue;
-        overlayCtx.globalAlpha = layer.opacity;
-        overlayCtx.drawImage(layer.img, 0, 0, overlayCanvas.width, overlayCanvas.height);
-    }
-    overlayCtx.globalAlpha = 1.0;
-    */
-}
-
-export function setLayerOpacity(name, opacity) {
-    const layer = overlayLayers.find(l => l.name === name);
-    if (!layer) return console.warn("Capa no encontrada:", name);
-    layer.opacity = Math.max(0, Math.min(1, opacity));
-    rebuildOverlayCanvas();
-    renderFromBase();
-}
-
-export function setLayerVisibility(name, visible) {
-    const layer = overlayLayers.find(l => l.name === name);
-    if (!layer) return console.warn("Capa no encontrada:", name);
-    layer.visible = visible;
-    rebuildOverlayCanvas();
-    renderFromBase();
-}
-
-export function removeOverlayLayer(name) {
-    const idx = overlayLayers.findIndex(l => l.name === name);
-    if (idx === -1) return console.warn("Capa no encontrada:", name);
-    overlayLayers.splice(idx, 1);
-    rebuildOverlayCanvas();
-    renderFromBase();
-}
+// Registra la memoria antes/después de operaciones pesadas.
+function memBefore(op)  { memoryStart(op); }
+function memAfter(op)   { memoryEnd(op); memoryReport(op); }
 
 // =======================
 // CAPAS DE AGUA
 // =======================
 
 export async function loadWaterLayers() {
+    memBefore("loadWaterLayers");
+    timerStart("loadWaterLayers");
     await Promise.all(waterLayers.map(layer => new Promise(resolve => {
         const image = new Image();
         image.onload  = () => { layer.img = image; resolve(); };
         image.onerror = () => { console.warn("No se pudo cargar capa de agua:", layer.src); resolve(); };
         image.src = layer.src;
     })));
-    waterCanvas.width  = overlayCanvas.width;
-    waterCanvas.height = overlayCanvas.height;
+    waterCanvas.width  = logicCanvas.width;
+    waterCanvas.height = logicCanvas.height;
     rebuildWaterLayer();
+    state.canvasDirty = true;
+    timerEnd("loadWaterLayers");
+    memAfter("loadWaterLayers");
 }
 
 export function rebuildWaterLayer() {
+    memBefore("rebuildWaterLayer");
+    timerStart("rebuildWaterLayer");
     const w = waterCanvas.width;
     const h = waterCanvas.height;
     if (!w || !h) return;
@@ -103,16 +75,28 @@ export function rebuildWaterLayer() {
     const imageData = tempCtx.getImageData(0, 0, w, h);
     const data = imageData.data;
 
+    let waterPixels = 0;
     for (let i = 0; i < data.length; i += 4) {
         if (data[i + 3] < 10) continue;
         data[i]     = waterColor.rgb[0];
         data[i + 1] = waterColor.rgb[1];
         data[i + 2] = waterColor.rgb[2];
+        waterPixels++;
     }
+    console.log("[REBUILD_WATER_LAYER] waterPixels pintados:", waterPixels, "waterColor:", waterColor.rgb);
 
     waterCtx.clearRect(0, 0, w, h);
     waterCtx.putImageData(imageData, 0, 0);
+    state.canvasDirty = true;
+    timerEnd("rebuildWaterLayer");
+    memAfter("rebuildWaterLayer");
 }
+
+// =======================
+// NOTA: La generación de provincias de agua (ríos/lagos) se realiza
+// desde una función externa usando una imagen base. Este módulo solo
+// provee las utilidades de agua (carga de capas, renderizado).
+// =======================
 
 export function setWaterLayerVisibility(name, visible) {
     const layer = waterLayers.find(l => l.name === name);
@@ -127,60 +111,77 @@ export function setWaterLayerVisibility(name, visible) {
 // =======================
 
 export function buildProvinceData() {
+    memBefore("buildProvinceData");
+    timerStart("buildProvinceData");
     const imageData = logicCtx.getImageData(0, 0, logicCanvas.width, logicCanvas.height);
     const data = imageData.data;
 
-    // Registrar el océano una sola vez como provincia especial
+    // Provincia especial para el océano (píxeles transparentes)
     const oceanKey = -1;
+    let oceanId = null;
     if (!colorToProvince[oceanKey]) {
-        const newId = bumpProvinceId();
-        colorToProvince[oceanKey] = newId;
-        provinceData[newId] = {
-            id:        newId,
-            colorKey:  oceanKey,
-            owner:     null,
-            name:      "Océano",
-            paintColor:[0, 0, 0],
-            isWater:   true,
-            isOcean:   true,
+        oceanId = bumpProvinceId();
+        colorToProvince[oceanKey] = oceanId;
+        provinceData[oceanId] = {
+            id:         oceanId,
+            colorKey:   oceanKey,
+            owner:      null,
+            name:       "Océano",
+            RGO:        0,
+            POP:        0,
+            paintColor: [...waterColor.rgb],
+            isWater:    true,
         };
-        provincePixels[newId] = [];
+        // Marcar píxeles de océano en el array plano Uint32 (índice = i/4, valor = 0 = océano)
+        // Cada posición en provincePixelIndices corresponde a un píxel (i/4)
+        if (state.provincePixelIndices) {
+            for (let i = 0; i < data.length; i += 4) {
+                if (data[i + 3] === 0) {
+                    state.provincePixelIndices[i / 4] = 0; // 0 = océano
+                }
+            }
+        }
+    } else {
+        // Ya teníamos el océano mapeado; asegurarse de que provincePixelIndices esté inicializado
+        if (!state.provincePixelIndices && colorToProvince[oceanKey]) {
+            // nothing special needed aquí, se inicializará conforme aparezcan provincias
+        }
     }
 
+    // Recorrer todos los píxeles no transparentes y asignarles provincia
     for (let i = 0; i < data.length; i += 4) {
-        if (data[i + 3] === 0) {
-            // Píxel de agua — registrar en la provincia océano
-            provincePixels[colorToProvince[oceanKey]].push(i);
-            continue;
-        }
+        if (data[i + 3] === 0) continue; // saltar píxeles oceánicos (ya marcados como 0)
 
         const r = data[i], g = data[i + 1], b = data[i + 2];
         const key = (r << 16) | (g << 8) | b;
 
-        if (!colorToProvince[key]) {
-            const newId = bumpProvinceId();
-            colorToProvince[key] = newId;
+        let id = colorToProvince[key];
+        if (!id) {
+            id = bumpProvinceId();
+            colorToProvince[key] = id;
             if (!state.loaded) {
-                provinceData[newId] = {
-                    id:         newId,
+                provinceData[id] = {
+                    id:         id,
                     colorKey:   key,
                     owner:      null,
-                    name:       `Provincia ${newId}`,
+                    name:       `Provincia ${id}`,
                     RGO:        0,
                     POP:        0,
                     paintColor: [...colorInicial],
                     isWater:    false,
                 };
             }
-            provincePixels[newId] = [];
         }
 
-        const id = colorToProvince[key];
-        if (!provincePixels[id]) provincePixels[id] = [];
-        provincePixels[id].push(i);
+        // Marcar este píxel como perteneciente a 'id' en el array plano Uint32
+        if (state.provincePixelIndices) {
+            state.provincePixelIndices[i / 4] = id;
+        }
     }
 
-    console.log("Provincias detectadas:", nextProvinceId - 1);
+    console.log("Provincias detectadas:", nextProvinceId - 1, "(incluye océano:", oceanId ? "sí" : "no" + ")");
+    timerEnd("buildProvinceData");
+    memAfter("buildProvinceData");
 }
 
 // =======================
@@ -191,6 +192,8 @@ export function buildProvinceData() {
 // =======================
 
 export function buildBorderCache(colorBorde = [20, 20, 20]) {
+    memBefore("buildBorderCache");
+    timerStart("buildBorderCache");
     const src    = state.baseCleanImageData;
     const width  = src.width;
     const height = src.height;
@@ -235,6 +238,8 @@ export function buildBorderCache(colorBorde = [20, 20, 20]) {
     borderCtx.putImageData(borderImageData, 0, 0);
     borderCache = found.slice(0, foundCount); // recortar al tamaño real
     console.log(`Border cache: ${borderCache.length} píxeles de borde`);
+    timerEnd("buildBorderCache");
+    memAfter("buildBorderCache");
 }
 
 // =======================
@@ -242,6 +247,8 @@ export function buildBorderCache(colorBorde = [20, 20, 20]) {
 // =======================
 
 export function createBaseMap() {
+    memBefore("createBaseMap");
+    timerStart("createBaseMap");
     const imageData = logicCtx.getImageData(0, 0, logicCanvas.width, logicCanvas.height);
     const data = imageData.data;
 
@@ -250,15 +257,24 @@ export function createBaseMap() {
         const provinceId = colorToProvince[key];
 
         if (!provinceId) {
-            data[i + 3] = 0;
+            // Píxel transparente = océano → pintar con color de agua (opacidad completa)
+            data[i]     = waterColor.rgb[0];
+            data[i + 1] = waterColor.rgb[1];
+            data[i + 2] = waterColor.rgb[2];
+            data[i + 3] = Math.round(provinceMapOpacity * 255);
             continue;
         }
 
+        const pd = provinceData[provinceId];
+        if (pd.isWater && provinceId !== colorToProvince[-1]) {
+            console.log("[CREATE_BASEMAP] Provincia agua pintada con 0.6x opacity - provinciaId:", provinceId, "isWater:", pd.isWater, "opacity:", Math.round(provinceMapOpacity * 0.6 * 255));
+        }
+/*
         if (provinceData[provinceId].isOcean) {
             data[i + 3] = 0;  // mantener transparente
             continue;
         }
-
+*/
         const color = provinceData[provinceId].paintColor;
         data[i]     = color[0];
         data[i + 1] = color[1];
@@ -268,17 +284,18 @@ export function createBaseMap() {
             : Math.round(provinceMapOpacity * 255);
     }
 
+    timerEnd("createBaseMap");
+    memAfter("createBaseMap");
     return imageData;
 }
 
-export function renderFromBase(imageData = state.baseImageData) {
+function buildCanvasRender(imageData) {
+    // Reconstruir cuando el contenido cambió (dirty) o cuando se dibuja
+    // el highlight (imageData distinto al base). El highlight NO debe
+    // saltarse por el cache de dirty, sino nunca se vería.
+    if (!state.canvasDirty && imageData === state.baseCleanImageData) return;
+    state.canvasDirty = false;
 
-    if (ToolStates.editor?.active) return;
-    // Fondo negro fuera del mapa (zoom out / pan)
-    ctx.fillStyle = "#0e0e18";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // Redimensionar canvasRender solo si cambió el tamaño
     if (canvasRender.width !== imageData.width || canvasRender.height !== imageData.height) {
         canvasRender.width  = imageData.width;
         canvasRender.height = imageData.height;
@@ -286,51 +303,14 @@ export function renderFromBase(imageData = state.baseImageData) {
 
     ctxRender.clearRect(0, 0, canvasRender.width, canvasRender.height);
 
-    // 1. Relieve o fondo blanco
-    if (overlayLayers.some(l => l.visible && l.img)) {
-        for (const layer of overlayLayers) {
-            if (!layer.visible || !layer.img) continue;
+    // Invalidar cache de scaling porque el contenido cambió
+    state._cachedScaledCanvas = null;
 
-            ctxRender.globalAlpha = layer.opacity;
+    // 1. Fondo blanco (sin relieves)
+    ctxRender.fillStyle = "#ffffff";
+    ctxRender.fillRect(0, 0, canvasRender.width, canvasRender.height);
 
-            const scaleX = layer.img.width  / logicCanvas.width;
-            const scaleY = layer.img.height / logicCanvas.height;
-
-            const srcX = Math.max(0, camera.x * scaleX);
-            const srcY = Math.max(0, camera.y * scaleY);
-            const srcW = Math.min(layer.img.width  - srcX, (canvas.width  / camera.zoom) * scaleX);
-            const srcH = Math.min(layer.img.height - srcY, (canvas.height / camera.zoom) * scaleY);
-
-            // destino en coordenadas absolutas del mapa
-            const dstX = Math.max(0, camera.x);
-            const dstY = Math.max(0, camera.y);
-            const dstW = canvas.width  / camera.zoom;
-            const dstH = canvas.height / camera.zoom;
-
-            console.log(
-                "layer.img.width: " + layer.img.width, "logicCanvas.width: " + logicCanvas.width, "layer.img.height: " + layer.img.height, "logicCanvas.height: " + logicCanvas.height, 
-                "scaleX: " + scaleX, "scaleY: " + scaleY, "srcX: " + srcX, "srcY: " + srcY, "srcW: " + srcW, "srcH: " + srcH, "camera.zoom: " + camera.zoom, "camera.x " + camera.x, "camera.y: " + camera.y
-            );
-
-            ctxRender.drawImage(
-                layer.img, 
-                srcX, srcY, srcW, srcH, 
-                0, 0, canvasRender.width, canvasRender.height
-            );
-        }
-        ctxRender.globalAlpha = 1.0;
-        
-    } else {
-        ctxRender.fillStyle = "#ffffff";
-        ctxRender.fillRect(0, 0, canvasRender.width, canvasRender.height);
-    }
-            
-    // 2. Agua
-    if (waterLayers.some(l => l.visible && l.img)) {
-        ctxRender.drawImage(waterCanvas, 0, 0);
-    }
-
-    // 3. Provincias — canvas persistente, no se crea en cada frame
+    // 2. Provincias — canvas persistente, no se crea en cada frame
     if (provinceCanvas.width !== imageData.width || provinceCanvas.height !== imageData.height) {
         provinceCanvas.width  = imageData.width;
         provinceCanvas.height = imageData.height;
@@ -338,10 +318,27 @@ export function renderFromBase(imageData = state.baseImageData) {
     provinceCtx.putImageData(imageData, 0, 0);
     ctxRender.drawImage(provinceCanvas, 0, 0);
 
+    // 3. Agua (lagos y ríos) — encima de las provincias
+    if (waterLayers.some(l => l.visible && l.img)) {
+        ctxRender.drawImage(waterCanvas, 0, 0);
+    }
+
     // 4. Bordes — canvas estático, nunca se recalcula al pintar
     if (borderCanvas.width > 0) {
         ctxRender.drawImage(borderCanvas, 0, 0);
     }
+}
+
+export function renderFromBase(imageData = state.baseCleanImageData, _skipTimer = false) {
+    if (!_skipTimer) timerStart("renderFromBase");
+
+    if (ToolStates.editor?.active) return;
+    // Fondo negro fuera del mapa (zoom out / pan)
+    ctx.fillStyle = "#0e0e18";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Reconstruir canvasRender solo si el contenido cambió (dirty)
+    buildCanvasRender(imageData);
 
     ctx.imageSmoothingEnabled = false;
 
@@ -355,55 +352,96 @@ export function renderFromBase(imageData = state.baseImageData) {
         // en el rango [-mapWpx, 0], pegada al borde izquierdo de pantalla
         const normalizedX = ((rawX % mapWpx) + mapWpx) % mapWpx - mapWpx;
 
+        // Cachear el canvasRender escalado si el zoom no cambió
+        if (state._cachedZoom !== camera.zoom) {
+            state._cachedZoom = camera.zoom;
+            state._cachedScaledCanvas = null; // invalidar
+        }
+        if (!state._cachedScaledCanvas) {
+            const sc = document.createElement("canvas");
+            sc.width  = Math.ceil(mapWpx);
+            sc.height = Math.ceil(logicCanvas.height * camera.zoom);
+            const sctx = sc.getContext("2d");
+            sctx.imageSmoothingEnabled = false;
+            sctx.drawImage(
+                canvasRender,
+                0, 0, canvasRender.width, canvasRender.height,
+                0, 0, sc.width, sc.height
+            );
+            state._cachedScaledCanvas = sc;
+        }
+
+        const sc = state._cachedScaledCanvas;
         for (const k of [0, 1, 2]) {
             ctx.drawImage(
-                canvasRender,
+                sc,
                 normalizedX + k * mapWpx,
                 screenY,
-                mapWpx,
-                logicCanvas.height * camera.zoom
+                sc.width,
+                sc.height
             );
         }
-    } 
+    }
     else {
-            ctx.drawImage(
-                canvasRender,
-                camera.x, camera.y,
-                canvas.width  / camera.zoom,
-                canvas.height / camera.zoom,
-                0, 0,
-                canvas.width, canvas.height
-            );
+        ctx.drawImage(
+            canvasRender,
+            camera.x, camera.y,
+            canvas.width  / camera.zoom,
+            canvas.height / camera.zoom,
+            0, 0,
+            canvas.width, canvas.height
+        );
     }
     updateMapPreview();
+    timerEnd("renderFromBase");
 }
 
 export function renderHighlight(ids) {
-
+    timerStart("renderHighlight");
     const idList = Array.isArray(ids) ? ids : [ids];
 
+    // Si highlightImageData no existe o necesita refrescarse,
+    // copiamos baseCleanImageData como base
     if (!state.highlightImageData) {
         const src = state.baseCleanImageData;
         state.highlightImageData = new ImageData(
             new Uint8ClampedArray(src.data), src.width, src.height
         );
     } else {
-        state.highlightImageData.data.set(state.baseImageData.data);
+        // Refrescar desde baseCleanImageData en vez de baseImageData (que fue eliminado)
+        state.highlightImageData.data.set(state.baseCleanImageData.data);
     }
 
     const data = state.highlightImageData.data;
 
     for (const id of idList) {
-        if (!provincePixels[id]) continue;
-        const color = provinceData[id].paintColor;
-        provincePixels[id].forEach(i => {
-            data[i]     = Math.max(0, color[0] - colorResaltado[0]);
-            data[i + 1] = Math.max(0, color[1] - colorResaltado[1]);
-            data[i + 2] = Math.max(0, color[2] - colorResaltado[2]);
-        });
+        // Ya no usamos provincePixels[id] (Map<id, [Array<indices>]>).
+        // En su lugar, recorremos provincePixelIndices plano para encontrar
+        // píxeles que pertenezcan a esta provincia (valor = id en posición i/4).
+        if (!state.provincePixelIndices) continue;
+
+        const color = provinceData[id]?.paintColor;
+        if (!color) continue;
+
+        // Recorrer todo el array plano y pintar los píxeles de esta provincia
+        const pixelCount = state.provincePixelIndices.length;
+        for (let p = 0; p < pixelCount; p++) {
+            if (state.provincePixelIndices[p] === id) {
+                const i = p * 4; // índice byte en el ImageData
+                data[i]     = Math.max(0, color[0] - colorResaltado[0]);
+                data[i + 1] = Math.max(0, color[1] - colorResaltado[1]);
+                data[i + 2] = Math.max(0, color[2] - colorResaltado[2]);
+            }
+        }
     }
 
-    renderFromBase(state.highlightImageData);
+    renderFromBase(state.highlightImageData, true);
+
+    // Marcar dirty para que el próximo renderFromBase(baseImageData)
+    // (cuando el cursor salga de la provincia) reconstruya sin highlight.
+    state.canvasDirty = true;
+    timerEnd("renderHighlight");
+    memAfter("renderHighlight");
 }
 
 // =======================
@@ -411,21 +449,36 @@ export function renderHighlight(ids) {
 // =======================
 
 export function updateBaseMapColor(provinceId) {
+    memBefore("updateBaseMapColor");
+    timerStart("updateBaseMapColor");
+    state.canvasDirty = true;
     const data  = state.baseCleanImageData.data;
     const color = provinceData[provinceId].paintColor;
     const alpha = provinceData[provinceId].isWater
         ? Math.round(provinceMapOpacity * 0.6 * 255)
         : Math.round(provinceMapOpacity * 255);
 
-    provincePixels[provinceId].forEach(i => {
-        data[i]     = color[0];
-        data[i + 1] = color[1];
-        data[i + 2] = color[2];
-        data[i + 3] = alpha;
-    });
+    // Actualizar píxeles usando provincePixelIndices plano (Uint32Array).
+    // provincePixelIndices[posición] = ID de la provincia. Buscamos todas las
+    // posiciones donde el valor sea provinceId y actualizamos su color.
+    if (state.provincePixelIndices) {
+        const pixelCount = state.provincePixelIndices.length;
+        for (let p = 0; p < pixelCount; p++) {
+            if (state.provincePixelIndices[p] === provinceId) {
+                const i = p * 4; // offset byte en el ImageData
+                data[i]     = color[0];
+                data[i + 1] = color[1];
+                data[i + 2] = color[2];
+                data[i + 3] = alpha;
+            }
+        }
+    }
+
+    timerEnd("updateBaseMapColor");
+    memAfter("updateBaseMapColor");
 
     // Sincronizar baseImageData (sin bordes, los bordes están en borderCanvas)
-    state.baseImageData = new ImageData(
+    state.baseCleanImageData = new ImageData(
         new Uint8ClampedArray(state.baseCleanImageData.data),
         state.baseCleanImageData.width,
         state.baseCleanImageData.height
@@ -435,11 +488,12 @@ export function updateBaseMapColor(provinceId) {
 export function setProvinceOpacity(opacity) {
     setProvinceMapOpacity(opacity);
     state.baseCleanImageData = createBaseMap();
-    state.baseImageData = new ImageData(
+    state.baseCleanImageData = new ImageData(
         new Uint8ClampedArray(state.baseCleanImageData.data),
         state.baseCleanImageData.width,
         state.baseCleanImageData.height
     );
+    state.canvasDirty = true;
     renderFromBase();
 }
 
@@ -447,6 +501,7 @@ export function setProvinceOpacity(opacity) {
 // internamente delega a buildBorderCache
 export function addBorders() {
     buildBorderCache();
+    state.canvasDirty = true;
 }
 
 export function arraysEqual(a, b) {
@@ -475,24 +530,30 @@ export function fillContinuity(startProvinceId) {
         provinceData[id].paintColor = [...newColor];
         updateBaseMapColor(id);
 
-        const pixels = provincePixels[id];
-        for (let k = 0; k < pixels.length; k++) {
-            const i = pixels[k];
-            const x = (i / 4) % width;
-            const y = Math.floor((i / 4) / width);
+        // Usar provincePixelIndices plano para encontrar píxeles vecinos
+        if (state.provincePixelIndices) {
+            const width = logicCanvas.width;
+            const pixelCount = state.provincePixelIndices.length;
+            for (let p = 0; p < pixelCount; p++) {
+                if (state.provincePixelIndices[p] === id) {
+                    const i = p * 4; // offset byte
+                    const x = (i / 4) % width;
+                    const y = Math.floor((i / 4) / width);
 
-            const neighbors = [
-                x > 0         ? i - 4        : -1,
-                x < width - 1 ? i + 4        : -1,
-                y > 0         ? i - width * 4 : -1,
-                                i + width * 4
-            ];
+                    const neighbors = [
+                        x > 0         ? i - 4        : -1,
+                        x < width - 1 ? i + 4        : -1,
+                        y > 0         ? i - width * 4 : -1,
+                                        i + width * 4
+                    ];
 
-            for (const ni of neighbors) {
-                if (ni < 0) continue;
-                const nKey = (logicData[ni] << 16) | (logicData[ni+1] << 8) | logicData[ni+2];
-                const nId  = colorToProvince[nKey];
-                if (nId && !visited.has(nId)) queue.push(nId);
+                    for (const ni of neighbors) {
+                        if (ni < 0) continue;
+                        const nKey = (logicData[ni] << 16) | (logicData[ni+1] << 8) | logicData[ni+2];
+                        const nId  = colorToProvince[nKey];
+                        if (nId && !visited.has(nId)) queue.push(nId);
+                    }
+                }
             }
         }
     }

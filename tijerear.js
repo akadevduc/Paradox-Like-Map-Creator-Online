@@ -1,12 +1,13 @@
 import { canvas, ctx, logicCanvas, logicCtx }  from "./main.js";
 import { state, colorToProvince, provinceData,
-         provincePixels, bumpProvinceId,
+         bumpProvinceId,
          colorInicial, brushColor }                        from "./state.js";
+// provincePixels eliminado: usamos provincePixelIndices (Uint32Array plano) en su lugar.
 import { camera }                              from "./camera.js";
 import { buildBorderCache, createBaseMap,
          renderFromBase, updateBaseMapColor }                      from "./provinces.js";
 import { ToolStates }                          from "./ui.js";
-// =======================
+import { isCountryLocked }                     from "./countries.js";
 // ESTADO
 // =======================
 
@@ -233,7 +234,10 @@ export function paintAlongPath(path) {
 
     for (const seg of segments) {
         if (!seg.provinceId || !provinceData[seg.provinceId]) continue;
-        if (provinceData[seg.provinceId].isOcean) continue;
+        if (isCountryLocked(seg.provinceId)) {
+            console.log("[PAINT_ALONG_PATH] País bloqueado - provinciaId:", seg.provinceId, "locked:", isCountryLocked(seg.provinceId));
+            continue;
+        }
         provinceData[seg.provinceId].paintColor = [...brushColor.rgb];
         updateBaseMapColor(seg.provinceId);
     }
@@ -327,7 +331,10 @@ function validateSegment(seg, pathProvinces, segPath) {
 // =======================
 
 function applyCut(provinceId, segPath, cutType, logicData) {
-    if (provinceData[provinceId]?.isOcean) return false;
+    if (isCountryLocked(provinceId)) {
+        console.log("[APPLY_CUT] País bloqueado - provinciaId:", provinceId, "locked:", isCountryLocked(provinceId));
+        return false;
+    }
     return applyCutTransversal(provinceId, segPath, logicData);
 }
 
@@ -358,9 +365,14 @@ function applyCutTransversal(provinceId, segPath, logicData) {
     const mask = new Uint8Array(width * height);
 
     // Marcar píxeles de la provincia como 1
-    const pixels = provincePixels[provinceId];
-    for (let k = 0; k < pixels.length; k++) {
-        mask[pixels[k] / 4] = 1;
+    // Usamos provincePixelIndices plano: posición = índice de píxel, valor = ID de provincia
+    if (state.provincePixelIndices) {
+        const pixels = state.provincePixelIndices;
+        for (let i = 0; i < pixels.length; i++) {
+            if (pixels[i] === provinceId) {
+                mask[i] = 1;
+            }
+        }
     }
 
     // Marcar bordes naturales como 2:
@@ -493,7 +505,12 @@ function applyCutClosed(polygon, logicData) {
 
                 const key = (logicD[i] << 16) | (logicD[i + 1] << 8) | logicD[i + 2];
                 const id  = colorToProvince[key];
-                if (!id || provinceData[id]?.isOcean) continue;
+                if (!id || isCountryLocked(id)) {
+                    if (id && isCountryLocked(id)) {
+                        console.log("[APPLY_CUT_CLOSED] País bloqueado - provinciaId:", id, "locked:", isCountryLocked(id));
+                    }
+                    continue;
+                }
 
                 if (!provinceGroups.has(id)) provinceGroups.set(id, new Set());
                 provinceGroups.get(id).add(pixIdx);
@@ -503,10 +520,15 @@ function applyCutClosed(polygon, logicData) {
 
     if (provinceGroups.size === 0) return false;
 
+    // Obtener la cantidad total de píxeles de esta provincia desde provincePixelIndices plano
+    const totalPixelsForProvince = (state.provincePixelIndices
+        ? [...state.provincePixelIndices].filter(id => id === provinceId).length
+        : pixelSet.size);
+
     let anyChange = false;
     for (const [provinceId, pixelSet] of provinceGroups) {
         // No crear provincia si el recorte abarca el 100% de la provincia
-        if (pixelSet.size >= provincePixels[provinceId].length) continue;
+        if (pixelSet.size >= totalPixelsForProvince) continue;
         if (createProvinceFromPixelSet(pixelSet, provinceId, logicData)) anyChange = true;
     }
 
@@ -558,15 +580,26 @@ function applyWaterEnclosure(segPath, logicData) {
         if (y < height - 1) queue.push(idx + width);
     }
 
-    // Provincias cuyos píxeles no fueron alcanzados por el exterior → están adentro
+    // Provincias cuyos píxeles no fueron alcanzados por el exterior → están adentras
     const provincesInside = new Set();
+    if (!state.provincePixelIndices) return false;
     for (const [key, id] of Object.entries(colorToProvince)) {
-        if (!provincePixels[id] || provincePixels[id].length === 0) continue;
-        if (provinceData[id]?.isOcean) continue;
+        // Buscar píxeles de esta provincia en provincePixelIndices plano
+        const provincePixelIds = [];
+        for (let i = 0; i < state.provincePixelIndices.length; i++) {
+            if (state.provincePixelIndices[i] === id) {
+                provincePixelIds.push(i);
+            }
+        }
+        if (provincePixelIds.length === 0) continue;
+        if (isCountryLocked(id)) {
+            console.log("[APPLY_WATER_ENCLOSURE] País bloqueado - provinciaId:", id, "locked:", isCountryLocked(id));
+            continue;
+        }
 
         let hasExterior = false;
-        for (let k = 0; k < provincePixels[id].length; k++) {
-            if (exterior[provincePixels[id][k] / 4]) { hasExterior = true; break; }
+        for (const pixelIdx of provincePixelIds) {
+            if (exterior[pixelIdx / 4]) { hasExterior = true; break; }
         }
         if (!hasExterior) provincesInside.add(id);
     }
@@ -587,16 +620,23 @@ function applyWaterEnclosure(segPath, logicData) {
             name: `Provincia ${newId}`, paintColor: [...colorInicial], isWater: false,
         };
 
-        provincePixels[newId] = [];
-        for (let k = 0; k < provincePixels[provinceId].length; k++) {
-            const i = provincePixels[provinceId][k];
-            logicData.data[i]     = newColor[0];
-            logicData.data[i + 1] = newColor[1];
-            logicData.data[i + 2] = newColor[2];
-            provincePixels[newId].push(i);
+        // Actualizar provincePixelIndices: copiar píxeles de provinceId a newId
+        if (state.provincePixelIndices) {
+            const pixelCount = state.provincePixelIndices.length;
+            const newIndices = [];
+            for (let p = 0; p < pixelCount; p++) {
+                if (state.provincePixelIndices[p] === provinceId) {
+                    state.provincePixelIndices[p] = newId;
+                    const i = p * 4;
+                    logicData.data[i]     = newColor[0];
+                    logicData.data[i + 1] = newColor[1];
+                    logicData.data[i + 2] = newColor[2];
+                    newIndices.push(i);
+                }
+            }
         }
 
-        provincePixels[provinceId] = [];
+        // Eliminar provinceId del mapa
         delete provinceData[provinceId];
 
         console.log(`Isla provincia ${provinceId} → nueva provincia ${newId}`);
@@ -626,7 +666,7 @@ function createProvinceFromPixelSet(pixelSet, fromProvinceId, logicData) {
 
     // oldPixelSet arranca con todos los píxeles de la provincia original.
     // Al final queda con los que NO pasaron a la nueva provincia.
-    const oldPixelSet     = new Set(provincePixels[fromProvinceId]);
+    // Usamos provincePixelIndices plano para rastrear asignaciones de píxeles.
     const newPixelIndices = [];
 
     pixelSet.forEach(pixIdx => {
@@ -635,11 +675,20 @@ function createProvinceFromPixelSet(pixelSet, fromProvinceId, logicData) {
         logicData.data[i + 1] = newColor[1];
         logicData.data[i + 2] = newColor[2];
         newPixelIndices.push(i);
-        oldPixelSet.delete(i);
     });
 
-    provincePixels[newId]          = newPixelIndices;
-    provincePixels[fromProvinceId] = Array.from(oldPixelSet);
+    // Actualizar provincePixelIndices: los píxeles de pixelSet pasan a newId
+    if (state.provincePixelIndices) {
+        const pixelCount = state.provincePixelIndices.length;
+        for (let p = 0; p < pixelCount; p++) {
+            const i = p * 4;
+            if (pixelSet.has(i)) {
+                state.provincePixelIndices[p] = newId;
+            }
+        }
+    }
+
+    // provincePixels eliminado: usamos provincePixelIndices plano.
 
     console.log(`Provincia ${fromProvinceId} cortada → nueva provincia ${newId} (${pixelSet.size} px)`);
     return true;
@@ -761,7 +810,10 @@ function getProvinceAtPixel(x, y, logicData) {
     if (xi < 0 || yi < 0 || xi >= logicCanvas.width || yi >= logicCanvas.height) return null;
 
     const i = (yi * logicCanvas.width + xi) * 4;
-    if (logicData.data[i + 3] === 0) return null;
+    // Pixel transparente = océano → key -1
+    if (logicData.data[i + 3] === 0) {
+        return colorToProvince[-1] ?? null;
+    }
 
     const key = (logicData.data[i] << 16) | (logicData.data[i+1] << 8) | logicData.data[i+2];
     return colorToProvince[key] ?? null;
@@ -774,7 +826,7 @@ function getProvinceAtPixel(x, y, logicData) {
 function commitChanges(logicData) {
     logicCtx.putImageData(logicData, 0, 0);
     state.baseCleanImageData = createBaseMap();
-    state.baseImageData = new ImageData(
+    state.baseCleanImageData = new ImageData(
         new Uint8ClampedArray(state.baseCleanImageData.data),
         state.baseCleanImageData.width,
         state.baseCleanImageData.height

@@ -2,7 +2,7 @@ import { canvas, ctx, logicCanvas, logicCtx }  from "./main.js";
 import { state, colorToProvince, provinceData,
          bumpProvinceId,
          colorInicial, brushColor }                        from "./state.js";
-// provincePixels eliminado: usamos provincePixelIndices (Uint32Array plano) en su lugar.
+// provincePixels eliminado: usamos provincePixelIndices (Uint16Array plano) en su lugar.
 import { camera }                              from "./camera.js";
 import { buildBorderCache, createBaseMap,
          renderFromBase, updateBaseMapColor }                      from "./provinces.js";

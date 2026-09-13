@@ -36,8 +36,7 @@ img.src = state.imgSrc;
 let uiInitialized = false;
 
 img.onload = async () => {
-    canvas.width  = img.width;
-    canvas.height = img.height;
+    bufferToScreen(canvas);
 
     logicCanvas.width  = img.width;
     logicCanvas.height = img.height;
@@ -63,10 +62,10 @@ img.onload = async () => {
 export async function setup(jsonSrc, legacy = false) {
     timerStart("setup");
 
-    // Inicializar provincePixelIndices (Uint32Array plano: posición = índice de píxel, valor = ID de provincia)
+    // Inicializar provincePixelIndices (Uint16Array plano: posición = índice de píxel, valor = ID de provincia)
     const mapW = logicCanvas.width;
     const mapH = logicCanvas.height;
-    state.provincePixelIndices = new Uint32Array(mapW * mapH);
+    state.provincePixelIndices = new Uint16Array(mapW * mapH);
 
     // Step 1: Dibujar mapa inmediatamente — el usuario ve el fondo al instante
     logicCtx.drawImage(img, 0, 0);
@@ -81,7 +80,7 @@ export async function setup(jsonSrc, legacy = false) {
     state.provincesPreloaded = true;
 
     // Step 2.5: buildProvinceData ahora llena provincePixelIndices directamente
-    // en buildProvinceData (se inicializó arriba como Uint32Array).
+    // en buildProvinceData (se inicializó arriba como Uint16Array).
 
     // Step 3: Crear imágenes base con los provinces ya poblados
     state.baseCleanImageData = createBaseMap();
@@ -153,8 +152,14 @@ export async function loadMapProvinces(file = "provinces.json") {
 export function resetMapState() {
     Object.keys(colorToProvince).forEach(k => delete colorToProvince[k]);
     Object.keys(provinceData).forEach(k    => delete provinceData[k]);
-    // provincePixelIndices es un Uint32Array, no un Map; reinicializar a null
+    // provincePixelIndices es un Uint16Array, no un Map; reinicializar a null
     state.provincePixelIndices = null;
     state.selectedProvince    = null;
     state.highlightImageData  = null;
+}
+
+export function bufferToScreen(canvas)
+{
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
 }

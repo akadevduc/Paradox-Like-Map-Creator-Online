@@ -15,6 +15,9 @@ import { loadMapProvinces, resetMapState,
 import { toggleScissorMode, initEditor, setPathCompleteCallback, processCutPath, paintAlongPath }                  from "./tijerear.js";
 import { initMapEditor, toggleMapEditor,
          floodFill, confirmEdit, cancelEdit}             from "./editor.js";
+import { bufferToScreen } from "./main.js";
+import * as utils from "./utils.js";
+import { updateCameraViewport } from "./camera.js";
 
 // Referencias a elementos UI
 const saveButton       = document.getElementById("saveButton");
@@ -410,4 +413,15 @@ closeBtn.addEventListener("click", () => popup.classList.add("hidden"));
 // Cerrar al clickear el fondo oscuro
 popup.addEventListener("click", e => {
     if (e.target === popup) popup.classList.add("hidden");
+});
+
+//con delay porque sino se dispara muchas times
+let resizeTimeout = null;
+window.addEventListener("resize", () => {
+    clearTimeout(resizeTimeout);
+    resizeTimeout = setTimeout(() => {
+        bufferToScreen(canvas);
+        updateCameraViewport(canvas, utils);
+        renderFromBase();
+    }, 100);
 });

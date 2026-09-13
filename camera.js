@@ -34,8 +34,7 @@ export function initCamera(canvas, utils) {
         provinceData_ref    = m.provinceData;
     });
 
-    camera.center = { x: canvas.width / 2,  y: canvas.height / 2 };
-    camera.offset = utils.scale({ x: canvas.width / 2, y: canvas.height / 2 }, -1);
+    updateCameraViewport(canvas, utils);
 
     // ── Zoom ──
     canvas.addEventListener("wheel", e => {
@@ -258,6 +257,11 @@ export function initCamera(canvas, utils) {
         }
         renderHighlight(toHighlight);
     });
+}
+
+export function updateCameraViewport(canvas, utils) {
+    camera.center = { x: canvas.width / 2,  y: canvas.height / 2 };
+    camera.offset = utils.scale({ x: canvas.width / 2, y: canvas.height / 2 }, -1);
 }
 
 export function screenToWorld(x, y, canvas) {

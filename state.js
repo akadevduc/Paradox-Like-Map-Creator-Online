@@ -61,7 +61,7 @@ export function setWaterColor(rgb) {
 // =======================
 // CONFIGURACIÓN
 // =======================
-export let provinceMapOpacity = 0.7;
+export let provinceMapOpacity = 1;
 export function setProvinceMapOpacity(v) { provinceMapOpacity = Math.max(0, Math.min(1, v)); }
 
 export const opacityStep = 5;

@@ -311,33 +311,27 @@ export function confirmEdit() {
         isWater: false,
     };
 
-    // Marcar píxeles nuevos en provincePixelIndices (Uint32Array plano)
-    // Cada posición = índice de píxel (i/4), valor = ID de provincia
     for (const key of drawnPixels) {
         const [x, y] = key.split(",").map(Number);
         const i      = (y * width + x) * 4;
-        const pixelIdx = i / 4; // índice en el Uint32Array
+        const pixelIdx = i / 4;
 
-        // Marcar como nueva provincia
+        // ▼▼▼ ESTO ES LO QUE FALTABA ▼▼▼
+        data[i]     = newColor[0];
+        data[i + 1] = newColor[1];
+        data[i + 2] = newColor[2];
+        data[i + 3] = 255;
+        // ▲▲▲
+
         if (state.provincePixelIndices) {
             state.provincePixelIndices[pixelIdx] = newId;
         }
     }
 
-    // Limpiar píxeles que pertenecían a la provincia vieja (si la hubo)
-    // Buscamos píxeles en la región que ahora ya no pertenecen a la nueva provincia
-    // (esto es más sencillo: recorremos todos los drawnPixels y quitamos referencias
-    // a la provincia anterior, pero con el array plano solo actualizamos el valor)
-    // Nota: como solo guardamos el último ID por píxel, si un píxel fue repintado,
-    // provincePixelIndices ya refleja el nuevo ID. No necesitamos "borrar" explícitamente
-    // ya que la próxima vez que se lea, el valor ya será el correcto.
+    logicCtx.putImageData(logicImageData, 0, 0);
+    invalidateEditorBase();
 
     state.baseCleanImageData = createBaseMap();
-    state.baseCleanImageData = new ImageData(
-        new Uint8ClampedArray(state.baseCleanImageData.data),
-        state.baseCleanImageData.width,
-        state.baseCleanImageData.height
-    );
     buildBorderCache();
  
     console.log(`Nueva provincia ${newId} creada con ${drawnPixels.size} px`);

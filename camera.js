@@ -189,8 +189,8 @@ export function initCamera(canvas, utils) {
                         selectCountryColor(hex);
                         renderCountryList();
                     }
-                    updateBaseMapColor(provinceId);
-                    addBorders();
+                    const bbox = updateBaseMapColor(provinceId);
+                    addBorders(bbox);
                     if (ToolStates.editor.active) {
                         renderLogicView();
                         redrawPreview();

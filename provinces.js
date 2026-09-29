@@ -23,7 +23,7 @@ const borderCanvas   = document.createElement("canvas");
 const borderCtx      = borderCanvas.getContext("2d");
 
 // Índices de píxeles que son borde — calculado UNA VEZ en buildBorderCache()
-let borderCache = null;
+let borderCache = new Set(); // antes era Int32Array — Set permite borrar índices puntuales
 
 // =======================
 // MEMORY TRACKING
@@ -191,53 +191,73 @@ export function buildProvinceData() {
 // No se vuelve a llamar al pintar provincias.
 // =======================
 
-export function buildBorderCache(colorBorde = [20, 20, 20]) {
+export function buildBorderCache(colorBorde = [20, 20, 20], region = null) {
     memBefore("buildBorderCache");
     timerStart("buildBorderCache");
+
     const src    = state.baseCleanImageData;
     const width  = src.width;
     const height = src.height;
     const data   = src.data;
 
-    const found = new Int32Array(src.data.length / 4); // tamaño máximo posible
-    let foundCount = 0;
+    // Si no hay región, es el rebuild completo (arranque de la app)
+    const x0 = region ? Math.max(1, region.x0 - 1) : 1;
+    const y0 = region ? Math.max(1, region.y0 - 1) : 1;
+    const x1 = region ? Math.min(width  - 2, region.x1 + 1) : width  - 2;
+    const y1 = region ? Math.min(height - 2, region.y1 + 1) : height - 2;
 
-    for (let i = 0; i < data.length; i += 4) {
-        if (data[i + 3] === 0) continue; // transparente = agua, ignorar
+    const regionArea = (x1 - x0 + 1) * (y1 - y0 + 1);
+    const totalArea  = width * height;
+    const isFullRebuild = !region || regionArea > totalArea * 0.5; // ajustá el 0.5 a gusto
 
-        const px = i / 4;
-        const x  = px % width;
-        const y  = Math.floor(px / width);
-        if (x === 0 || x === width - 1 || y === 0 || y === height - 1) continue;
+    if (isFullRebuild) borderCache.clear();
 
-        const r = data[i], g = data[i + 1], b = data[i + 2];
+    const newBorderPixels = [];
 
-        if (data[i + 4]            !== r || data[i + 5]            !== g || data[i + 6]            !== b ||
-            data[i - 4]            !== r || data[i - 3]            !== g || data[i - 2]            !== b ||
-            data[i - width * 4]     !== r || data[i - width * 4 + 1] !== g || data[i - width * 4 + 2] !== b ||
-            data[i + width * 4]     !== r || data[i + width * 4 + 1] !== g || data[i + width * 4 + 2] !== b) {
-            found[foundCount++] = i;
+    for (let y = y0; y <= y1; y++) {
+        for (let x = x0; x <= x1; x++) {
+            const i = (y * width + x) * 4;
+
+            if (!isFullRebuild) borderCache.delete(i); // solo borrar de a uno si la región es chica
+
+            if (data[i + 3] === 0) continue;
+
+            const r = data[i], g = data[i + 1], b = data[i + 2];
+
+            if (data[i + 4]           !== r || data[i + 5]           !== g || data[i + 6]           !== b ||
+                data[i - 4]           !== r || data[i - 3]           !== g || data[i - 2]           !== b ||
+                data[i - width * 4]   !== r || data[i - width*4 + 1] !== g || data[i - width*4 + 2] !== b ||
+                data[i + width * 4]   !== r || data[i + width*4 + 1] !== g || data[i + width*4 + 2] !== b) {
+                borderCache.add(i);
+                newBorderPixels.push(i);
+            }
         }
     }
 
-    borderCache = new Int32Array(found);
-
-    borderCanvas.width  = width;
-    borderCanvas.height = height;
-    const borderImageData = borderCtx.createImageData(width, height);
-    const bd = borderImageData.data;
-
-    for (let k = 0; k < borderCache.length; k++) {
-        const i  = borderCache[k];
-        bd[i]     = colorBorde[0];
-        bd[i + 1] = colorBorde[1];
-        bd[i + 2] = colorBorde[2];
-        bd[i + 3] = 60;
+    if (borderCanvas.width !== width || borderCanvas.height !== height) {
+        borderCanvas.width  = width;
+        borderCanvas.height = height;
     }
 
-    borderCtx.putImageData(borderImageData, 0, 0);
-    borderCache = found.slice(0, foundCount); // recortar al tamaño real
-    console.log(`Border cache: ${borderCache.length} píxeles de borde`);
+    const rectW = x1 - x0 + 1;
+    const rectH = y1 - y0 + 1;
+    const borderImageData = borderCtx.createImageData(rectW, rectH);
+    const bd = borderImageData.data;
+
+    for (const i of newBorderPixels) {
+        const px = i / 4;
+        const x  = px % width;
+        const y  = Math.floor(px / width);
+        const localI = ((y - y0) * rectW + (x - x0)) * 4;
+        bd[localI]     = colorBorde[0];
+        bd[localI + 1] = colorBorde[1];
+        bd[localI + 2] = colorBorde[2];
+        bd[localI + 3] = 60;
+    }
+
+    borderCtx.putImageData(borderImageData, x0, y0); // solo repinta el rectángulo, no todo el canvas
+
+    console.log(`Border cache: ${borderCache.size} píxeles totales (recalculados: ${newBorderPixels.length})`);
     timerEnd("buildBorderCache");
     memAfter("buildBorderCache");
 }
@@ -393,7 +413,7 @@ export function renderFromBase(imageData = state.baseCleanImageData, _skipTimer 
         );
     }
     updateMapPreview();
-    timerEnd("renderFromBase");
+    if (!_skipTimer) timerEnd("renderFromBase");
 }
 
 export function renderHighlight(ids) {
@@ -449,8 +469,10 @@ export function renderHighlight(ids) {
 // =======================
 
 export function updateBaseMapColor(provinceId) {
+
     memBefore("updateBaseMapColor");
     timerStart("updateBaseMapColor");
+
     state.canvasDirty = true;
     const data  = state.baseCleanImageData.data;
     const color = provinceData[provinceId].paintColor;
@@ -461,15 +483,24 @@ export function updateBaseMapColor(provinceId) {
     // Actualizar píxeles usando provincePixelIndices plano (Uint32Array).
     // provincePixelIndices[posición] = ID de la provincia. Buscamos todas las
     // posiciones donde el valor sea provinceId y actualizamos su color.
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+
     if (state.provincePixelIndices) {
         const pixelCount = state.provincePixelIndices.length;
         for (let p = 0; p < pixelCount; p++) {
             if (state.provincePixelIndices[p] === provinceId) {
-                const i = p * 4; // offset byte en el ImageData
+                const i = p * 4;
                 data[i]     = color[0];
                 data[i + 1] = color[1];
                 data[i + 2] = color[2];
                 data[i + 3] = alpha;
+
+                const x = p % state.baseCleanImageData.width;
+                const y = Math.floor(p / state.baseCleanImageData.width);
+                if (x < x0) x0 = x;
+                if (x > x1) x1 = x;
+                if (y < y0) y0 = y;
+                if (y > y1) y1 = y;
             }
         }
     }
@@ -483,6 +514,8 @@ export function updateBaseMapColor(provinceId) {
         state.baseCleanImageData.width,
         state.baseCleanImageData.height
     );
+
+    return { x0, y0, x1, y1 };
 }
 
 export function setProvinceOpacity(opacity) {
@@ -499,8 +532,8 @@ export function setProvinceOpacity(opacity) {
 
 // addBorders se mantiene con el mismo nombre para no romper llamadas desde main.js y ui.js
 // internamente delega a buildBorderCache
-export function addBorders() {
-    buildBorderCache();
+export function addBorders(region = null) {
+    buildBorderCache(undefined, region);
     state.canvasDirty = true;
 }
 

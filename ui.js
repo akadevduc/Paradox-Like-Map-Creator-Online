@@ -18,6 +18,8 @@ import { initMapEditor, toggleMapEditor,
 import { bufferToScreen } from "./main.js";
 import * as utils from "./utils.js";
 import { updateCameraViewport } from "./camera.js";
+import { initReferences } from "./references.js";
+initReferences(renderFromBase);
 
 // Referencias a elementos UI
 const saveButton       = document.getElementById("saveButton");
@@ -86,7 +88,9 @@ function toggleToolStateInside(activeState, buttonElement = null) {
     const isActive = !activeState.active;
     document.querySelectorAll('.sidebar a').forEach(a => a.classList.remove('active'));
 
-    Object.values(ToolStates).forEach(ts => { ts.active = false; });
+    Object.values(ToolStates).forEach(ts => {
+        if (ts !== ToolStates.editor) ts.active = false; // preservar editor.active
+    });
 
     activeState.active = isActive;
     state.pinnedProvince = null;
@@ -424,4 +428,18 @@ window.addEventListener("resize", () => {
         updateCameraViewport(canvas, utils);
         renderFromBase();
     }, 100);
+});
+
+const refInput   = document.getElementById("AddRefImage");
+const refPreview = document.getElementById("RefImagePreview");
+
+refInput.addEventListener("change", () => {
+    const file = refInput.files[0];
+    if (!file) return;
+
+    const url = URL.createObjectURL(file);
+    refPreview.onload = () => URL.revokeObjectURL(url);
+    refPreview.src = url;
+
+    refInput.value = "";
 });

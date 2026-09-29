@@ -147,81 +147,95 @@
         </nav>
     </div>
 
+    <div class="refPanel">
+        <div class="ref-add">
+            <span>➕</span>
+            <input type="file" id="AddRefImage" accept="image/*">
+        </div>
+
+        <div class="refList" id="RefList"></div>
+
+        <template id="RefItemTemplate">
+            <div class="refImage">
+                <img class="ref-preview" alt="Referencia">
+                <div class="refImageButtons">
+                    <button class="ref-delete" title="Eliminar Imagen">❌</button>
+                    <button class="ref-hide"   title="Ocultar Imagen">👁</button>
+                    <button class="ref-blur"   title="Pixelar Imagen">🔍</button>
+                </div>
+                <div class="opacity-control">
+                    <input type="range" class="opacity-slider ref-opacity" min="0" max="100" value="100" step="5">
+                    <span class="opacity-label ref-opacity-label">100%</span>
+                </div>
+            </div>
+        </template>
+    </div>
+
     <div class="sidebar othersidebar">
-    <nav>
-        <ul>
-            <!-- Sección País -->
-            <li class="info-section">
-                <span class="info-section__title">País</span>
+        <nav>
+            <ul>
+                <!-- Sección País -->
+                <li class="info-section">
+                    <span class="info-section__title">País</span>
 
-                <!-- Bandera -->
-                <div class="flag-wrapper" style="margin-bottom: 10px;">
-                    <img id="CountryFlagPreview" src="imgs/placeholder.png" alt="Bandera">
-                    <input id="CountryFlag" type="file" accept="image/*">
-                </div>
+                    <!-- Bandera -->
+                    <div class="flag-wrapper" style="margin-bottom: 10px;">
+                        <img id="CountryFlagPreview" src="imgs/placeholder.png" alt="Bandera">
+                        <input id="CountryFlag" type="file" accept="image/*">
+                    </div>
 
-                <div class="info-row">
-                    <span class="info-label">Nombre</span>
-                    <input id="CountryName" class="info-input" type="text" placeholder="—">
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Color</span>
-                    <input id="CountryColor" type="color" class="country-color-picker">
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Bloqueado</span>
-                    <label class="lock-toggle">
-                        <input id="CountryLocked" type="checkbox">
-                        <span class="lock-slider"></span>
-                    </label>
-                </div>
-            </li>
+                    <div class="info-row">
+                        <span class="info-label">Nombre</span>
+                        <input id="CountryName" class="info-input" type="text" placeholder="—">
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Color</span>
+                        <input id="CountryColor" type="color" class="country-color-picker">
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Bloqueado</span>
+                        <label class="lock-toggle">
+                            <input id="CountryLocked" type="checkbox">
+                            <span class="lock-slider"></span>
+                        </label>
+                    </div>
+                </li>
 
-            <!-- Sección Provincia -->
-            <li class="info-section">
-                <span class="info-section__title">Provincia</span>
+                <!-- Sección Provincia -->
+                <li class="info-section">
+                    <span class="info-section__title">Provincia</span>
 
-                <div class="info-row">
-                    <span class="info-label">ID</span>
-                    <span id="ProvinceId" class="info-value">—</span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Nombre</span>
-                    <input id="ProvinceName" class="info-input" type="text" placeholder="—">
-                </div>
-                <div class="info-row">
-                    <span class="info-label">RGO</span>
-                    <input id="ProvinceRGO" class="info-input" type="text" placeholder="—">
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Población</span>
-                    <input id="ProvincePopulation" class="info-input" type="text" placeholder="—">
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Es agua</span>
-                    <input id="ProvinceIsWater" type="checkbox">
-                </div>
-            </li>
+                    <div class="info-row">
+                        <span class="info-label">ID</span>
+                        <span id="ProvinceId" class="info-value">—</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Nombre</span>
+                        <input id="ProvinceName" class="info-input" type="text" placeholder="—">
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">RGO</span>
+                        <input id="ProvinceRGO" class="info-input" type="text" placeholder="—">
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Población</span>
+                        <input id="ProvincePopulation" class="info-input" type="text" placeholder="—">
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Es agua</span>
+                        <input id="ProvinceIsWater" type="checkbox">
+                    </div>
+                </li>
 
-            <!-- Imágenes de guía -->
-            <li class="info-section">
-                <span class="info-section__title">Imágenes de Guía</span>
-                <div class="guide-grid">
-                    <img src="imgs/placeholder.png" alt="">
-                    <img src="imgs/placeholder.png" alt="">
-                    <img src="imgs/placeholder.png" alt="">
-                </div>
-            </li>
+                <!-- Vista previa del mapa -->
+                <li class="info-section">
+                    <span class="info-section__title">Vista Previa</span>
+                    <canvas id="mapPreview"></canvas>
+                </li>
 
-            <!-- Vista previa del mapa -->
-            <li class="info-section">
-                <span class="info-section__title">Vista Previa</span>
-                <canvas id="mapPreview"></canvas>
-            </li>
-
-        </ul>
-    </nav>
-</div>
+            </ul>
+        </nav>
+    </div>
 
     <canvas id="mapCanvas" width="800" height="600"></canvas>
 

@@ -9,9 +9,17 @@ export function scale(point, multiplier) {
 // TIMING UTILITIES
 // =======================
 const _t0 = {};
-export function timerStart(name) { _t0[name] = performance.now(); }
+export function timerStart(name) {
+    (_t0[name] ??= []).push(performance.now());
+}
 export function timerEnd(name) {
-    const ms = performance.now() - _t0[name];
+    const stack = _t0[name];
+    if (!stack || stack.length === 0) {
+        console.warn(`[PERF] timerEnd("${name}") llamado sin timerStart correspondiente`);
+        return;
+    }
+    const start = stack.pop();
+    const ms = performance.now() - start;
     if (ms > 2) console.log(`[PERF] ${name}: ${ms.toFixed(2)}ms`);
 }
 

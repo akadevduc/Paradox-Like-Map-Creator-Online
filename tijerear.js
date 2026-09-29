@@ -232,17 +232,19 @@ export function paintAlongPath(path) {
     const pathProvinces = path.map(pt => getProvinceAtPixel(pt.x, pt.y, logicData));
     const segments      = segmentByProvince(pathProvinces);
 
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+
     for (const seg of segments) {
         if (!seg.provinceId || !provinceData[seg.provinceId]) continue;
-        if (isCountryLocked(seg.provinceId)) {
-            console.log("[PAINT_ALONG_PATH] País bloqueado - provinciaId:", seg.provinceId, "locked:", isCountryLocked(seg.provinceId));
-            continue;
-        }
+        if (isCountryLocked(seg.provinceId)) continue;
+
         provinceData[seg.provinceId].paintColor = [...brushColor.rgb];
-        updateBaseMapColor(seg.provinceId);
+        const bbox = updateBaseMapColor(seg.provinceId);
+        x0 = Math.min(x0, bbox.x0); y0 = Math.min(y0, bbox.y0);
+        x1 = Math.max(x1, bbox.x1); y1 = Math.max(y1, bbox.y1);
     }
 
-    buildBorderCache();
+    if (x1 >= x0) buildBorderCache(undefined, { x0, y0, x1, y1 });
     renderFromBase();
 }
 

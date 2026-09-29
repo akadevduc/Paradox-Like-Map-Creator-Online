@@ -605,3 +605,78 @@ label:hover { background-color: #eee; }
     height: 100%;
     object-fit: cover;
 }
+
+.refPanel {
+    position: fixed;
+    bottom: 0;
+    right: 17rem;
+    width: 10rem;
+    z-index: 100;
+    background: #1e1e30;
+    padding: 10px 12px;
+    border-radius: 0.5rem 0 0 0.5rem;
+}
+
+.refPanel input[type="file"] {
+    width: 100%;
+}
+
+.refImageButtons {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+}
+
+.ref-picker {
+    position: relative;
+    display: block;
+    width: fit-content;      /* la caja abraza a la imagen, el click solo cubre la imagen */
+    max-width: 100%;
+    margin: 8px auto;
+    cursor: pointer;
+    border: 1px dashed rgba(255,255,255,0.15);
+    border-radius: 6px;
+    overflow: hidden;
+    transition: border-color 0.15s;
+}
+.ref-picker:hover {
+    border-color: #c8a84b;
+}
+.ref-picker input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+}
+
+#RefImagePreview {
+    display: block;
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: 120px;
+}
+
+.refImageButtons button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 2px 4px;
+}
+
+.ref-preview {
+    display: block;
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: 120px;
+    margin: 0 auto;
+    border-radius: 4px;
+}
+
+.refImage.is-hidden .ref-preview { opacity: 0.35; }
+.ref-blur.is-on { outline: 1px solid #c8a84b; border-radius: 4px; }

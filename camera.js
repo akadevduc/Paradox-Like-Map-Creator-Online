@@ -234,16 +234,22 @@ export function initCamera(canvas, utils) {
 export function handleZoom(e) {
     e.preventDefault();
 
-    const before = getMousePos(e, canvas);
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+
+    const beforeX = camera.x + mx / camera.zoom;
+    const beforeY = camera.y + my / camera.zoom;
+
     const dir = Math.sign(e.deltaY);
-
     camera.zoom *= (1 - dir * ZoomStep);
-    camera.zoom = Math.max(MinZoom, Math.min(MaxZoom, camera.zoom));
+    camera.zoom  = Math.max(MinZoom, Math.min(MaxZoom, camera.zoom));
 
-    const after = getMousePos(e, canvas);
+    const afterX = camera.x + mx / camera.zoom;
+    const afterY = camera.y + my / camera.zoom;
 
-    camera.x += before.x - after.x;
-    camera.y += before.y - after.y;
+    camera.x += beforeX - afterX;
+    camera.y += beforeY - afterY;
 
     updateReferences();
 

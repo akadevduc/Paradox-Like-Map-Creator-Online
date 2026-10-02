@@ -139,6 +139,10 @@ export function renderCountryList() {
             input.click();
         });
 
+        li.querySelector('.country-color-picker').addEventListener('change', e => {
+            changeCountryColor(hex, e.target.value);
+        });
+
         li.querySelector('.country-copy-btn').addEventListener('click', () => selectCountryColor(hex));
 
         li.querySelector('.country-lock-btn').addEventListener('click', () => {

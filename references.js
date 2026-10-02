@@ -97,7 +97,7 @@ export function initReferences(onChange) {
             ref.bitmap.close();                  // libera la memoria de la imagen
             URL.revokeObjectURL(ref.thumbUrl);
             el.remove();
-            img.remove();
+            element.remove();   
             onChange();
         });
 

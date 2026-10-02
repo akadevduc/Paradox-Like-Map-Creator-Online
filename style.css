@@ -697,16 +697,6 @@ label:hover { background-color: #eee; }
     height: fit-content;
     pointer-events: none;
 }
-#references .reference-image img {
-    display: block;
-    position: static;
-    width: auto;
-    height: auto;
-    max-width: 100vw;
-    max-height: 100vh;
-    pointer-events: none;
-    user-select: none;
-}
 #references .ref-move {
     position: absolute;
     right: 0;
@@ -849,4 +839,28 @@ label:hover { background-color: #eee; }
     bottom: -7px;
     right: -7px;
     cursor: nwse-resize;
+}
+.ref-add {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    font-size: 1.3rem;
+    cursor: pointer;
+    border: 1px dashed rgba(255,255,255,0.15);
+    border-radius: 6px;
+    transition: border-color 0.15s;
+}
+.ref-add:hover {
+    border-color: #c8a84b;
+}
+.ref-add input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
 }

@@ -3,8 +3,8 @@ import { renderFromBase, renderHighlight, fillContinuity }     from "./provinces
 import { renderLogicView, redrawPreview } from "./editor.js";
 import { ToolStates, bucketMode } from "./ui.js";
 import { rgbToHex, changeCountryColor, showProvinceAndCountryInfo, isCountryLocked } from "./countries.js";
-import { logicCanvas } from "./main.js";
-
+import { canvas } from "./main.js";
+import { updateReferences } from "./references.js";
 
 // camera es un objeto exportado para que provinces.js y otros puedan leerlo
 export const camera = {
@@ -36,36 +36,7 @@ export function initCamera(canvas, utils) {
 
     updateCameraViewport(canvas, utils);
 
-    // ── Zoom ──
-    canvas.addEventListener("wheel", e => {
-        e.preventDefault();
-        const before = getMousePos(e, canvas);
-        const dir    = Math.sign(e.deltaY);
-        camera.zoom *= (1 - dir * ZoomStep);
-        camera.zoom  = Math.max(MinZoom, Math.min(MaxZoom, camera.zoom));
-        const after  = getMousePos(e, canvas);
-        camera.x += before.x - after.x;
-        camera.y += before.y - after.y;
-        state.selectedProvince = null; // ← forzar que mousemove regenere el highlight
-
-        if (state.wrapHorizontal) {
-            const mapW = logicCtx_ref?.canvas.width ?? 0;
-            if (mapW > 0) {
-                camera.x = ((camera.x % mapW) + mapW) % mapW;
-            }
-        }
-
-        if (ToolStates.editor.active) {
-            renderLogicView();
-            redrawPreview();
-        } else if (state.pinnedProvince !== null) {
-            renderFromBase();
-            renderHighlight(state.pinnedProvince);
-        } else {
-            renderFromBase();
-        }
-        
-    }, { passive: false });
+    canvas.addEventListener("wheel", handleZoom, { passive: false });
 
     //moverselol
     const PAN_SPEED = 20; // píxeles por frame, ajustable
@@ -259,6 +230,43 @@ export function initCamera(canvas, utils) {
     });
 }
 
+// ── Zoom ──
+export function handleZoom(e) {
+    e.preventDefault();
+
+    const before = getMousePos(e, canvas);
+    const dir = Math.sign(e.deltaY);
+
+    camera.zoom *= (1 - dir * ZoomStep);
+    camera.zoom = Math.max(MinZoom, Math.min(MaxZoom, camera.zoom));
+
+    const after = getMousePos(e, canvas);
+
+    camera.x += before.x - after.x;
+    camera.y += before.y - after.y;
+
+    updateReferences();
+
+    state.selectedProvince = null;
+
+    if (state.wrapHorizontal) {
+        const mapW = logicCtx_ref?.canvas.width ?? 0;
+        if (mapW > 0) {
+            camera.x = ((camera.x % mapW) + mapW) % mapW;
+        }
+    }
+
+    if (ToolStates.editor.active) {
+        renderLogicView();
+        redrawPreview();
+    } else if (state.pinnedProvince !== null) {
+        renderFromBase();
+        renderHighlight(state.pinnedProvince);
+    } else {
+        renderFromBase();
+    }
+}
+
 export function updateCameraViewport(canvas, utils) {
     camera.center = { x: canvas.width / 2,  y: canvas.height / 2 };
     camera.offset = utils.scale({ x: canvas.width / 2, y: canvas.height / 2 }, -1);
@@ -277,7 +285,13 @@ export function screenToWorld(x, y, canvas) {
 }
 
 function getMousePos(evt, canvas) {
-    return screenToWorld(evt.offsetX, evt.offsetY, canvas);
+    const rect = canvas.getBoundingClientRect();
+
+    return screenToWorld(
+        evt.clientX - rect.left,
+        evt.clientY - rect.top,
+        canvas
+    );
 }
 
 /*

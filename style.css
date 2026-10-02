@@ -680,3 +680,173 @@ label:hover { background-color: #eee; }
 
 .refImage.is-hidden .ref-preview { opacity: 0.35; }
 .ref-blur.is-on { outline: 1px solid #c8a84b; border-radius: 4px; }
+
+#references {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 10;
+    pointer-events: none;
+}
+#references .reference-image {
+    position: absolute;
+    top: 100px;
+    left: 100px;
+    width: fit-content;
+    height: fit-content;
+    pointer-events: none;
+}
+#references .reference-image img {
+    display: block;
+    position: static;
+    width: auto;
+    height: auto;
+    max-width: 100vw;
+    max-height: 100vh;
+    pointer-events: none;
+    user-select: none;
+}
+#references .ref-move {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.7);
+    color: #e8e6d8;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    cursor: grab;
+    pointer-events: auto;
+    font-size: 14px;
+    line-height: 1;
+    z-index: 2;
+}
+#references .ref-move:hover {
+    background: rgba(0, 0, 0, 0.9);
+}
+#references .ref-move:active {
+    cursor: grabbing;
+}
+.refPanel {
+    position: fixed;
+    bottom: 0;
+    right: 17rem;
+    width: 10rem;
+    z-index: 100;
+    background: #1e1e30;
+    padding: 10px 12px;
+    border-radius: 0.5rem 0 0 0.5rem;
+}
+.refImageButtons {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+}
+.ref-picker {
+    position: relative;
+    display: block;
+    width: fit-content;
+    max-width: 100%;
+    margin: 8px auto;
+    cursor: pointer;
+    border: 1px dashed rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+    overflow: hidden;
+    transition: border-color 0.15s;
+}
+.ref-picker:hover {
+    border-color: #c8a84b;
+}
+.ref-picker input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+}
+#RefImagePreview {
+    display: block;
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: 120px;
+}
+.refImageButtons button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 2px 4px;
+}
+.ref-preview {
+    display: block;
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: 120px;
+    margin: 0 auto;
+    border-radius: 4px;
+}
+.refImage.is-hidden .ref-preview {
+    opacity: 0.35;
+}
+.ref-blur.is-on {
+    outline: 1px solid #c8a84b;
+    border-radius: 4px;
+}
+
+#references .reference-image {
+    position: absolute;
+    width: fit-content;
+    height: fit-content;
+    pointer-events: auto;
+}
+#references .reference-image img {
+    display: block;
+    position: static;
+    width: auto;
+    height: auto;
+    pointer-events: auto;
+    user-select: none;
+}
+#references .ref-resize {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    padding: 0;
+    margin: 0;
+    background: #1e1e30;
+    border: 1px solid #c8a84b;
+    border-radius: 50%;
+    cursor: nwse-resize;
+    pointer-events: auto;
+    z-index: 2;
+}
+#references .ref-resize-nw {
+    top: -7px;
+    left: -7px;
+    cursor: nwse-resize;
+}
+#references .ref-resize-ne {
+    top: -7px;
+    right: -7px;
+    cursor: nesw-resize;
+}
+#references .ref-resize-sw {
+    bottom: -7px;
+    left: -7px;
+    cursor: nesw-resize;
+}
+#references .ref-resize-se {
+    bottom: -7px;
+    right: -7px;
+    cursor: nwse-resize;
+}

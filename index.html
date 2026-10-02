@@ -161,6 +161,7 @@
                 <div class="refImageButtons">
                     <button class="ref-delete" title="Eliminar Imagen">❌</button>
                     <button class="ref-hide"   title="Ocultar Imagen">👁</button>
+                    <button class="ref-block"  title="Bloquar Imagen">🔓</button>
                     <button class="ref-blur"   title="Pixelar Imagen">🔍</button>
                 </div>
                 <div class="opacity-control">
@@ -238,6 +239,21 @@
     </div>
 
     <canvas id="mapCanvas" width="800" height="600"></canvas>
+    
+    <div id="references">
+        <template id="referenceImg">
+            <div class="reference-image">
+                <img src="" alt="Referencia">
+                <div class="resizeButtons">
+                    <button class="ref-resize ref-resize-nw">↖️</button>
+                    <button class="ref-resize ref-resize-ne">↗️</button>
+                    <button class="ref-resize ref-resize-sw">↙️</button>
+                    <button class="ref-resize ref-resize-se">↘️</button>
+                </div>
+            </div>
+        </template>
+
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
     <script type="module" src="main.js"></script>

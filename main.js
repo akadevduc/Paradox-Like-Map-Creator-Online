@@ -31,7 +31,7 @@ export const waterCtx     = waterCanvas.getContext("2d", { willReadFrequently: t
 // IMAGEN BASE
 // =======================
 export const img = new Image();
-img.src = state.imgSrc;
+img.src = state.defaultMap.imgSrc; 
 
 let uiInitialized = false;
 
@@ -53,13 +53,13 @@ img.onload = async () => {
         uiInitialized = true;
     }
 
-    await setup(state.jsonSrc, state.legacy);
+    await setup(state.defaultMap.jsonSrc);
 };
 
 // =======================
 // SETUP
 // =======================
-export async function setup(jsonSrc, legacy = false) {
+export async function setup(jsonSrc) {
     timerStart("setup");
 
     // Inicializar provincePixelIndices (Uint16Array plano: posición = índice de píxel, valor = ID de provincia)
@@ -123,8 +123,15 @@ export async function loadMapProvinces(file = "provinces.json") {
             return false;
         }
         const data = await response.json();
-
-        Object.keys(data.provinces).forEach(id => {
+        // verificar compatibilidad antes de modificar nada
+        if (data.mapType === undefined) {
+            console.warn("El JSON no tiene mapType (archivo viejo), se asume compatible con", state.activeMapId);
+        } else if (data.mapType !== state.activeMapId) {
+            console.error(`JSON incompatible: es de "${data.mapType}" y el mapa activo es "${state.activeMapId}"`);
+            return false;
+        }
+//provinceData base acá LOLOLOLOLOLOL
+        Object.keys(data.provinces).forEach(id => { 
             const pd = data.provinces[id];
             provinceData[id] = {
                 id:         parseInt(id),

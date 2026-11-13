@@ -242,6 +242,7 @@ export function paintAlongPath(path) {
         const bbox = updateBaseMapColor(seg.provinceId);
         x0 = Math.min(x0, bbox.x0); y0 = Math.min(y0, bbox.y0);
         x1 = Math.max(x1, bbox.x1); y1 = Math.max(y1, bbox.y1);
+
     }
 
     if (x1 >= x0) buildBorderCache(undefined, { x0, y0, x1, y1 });

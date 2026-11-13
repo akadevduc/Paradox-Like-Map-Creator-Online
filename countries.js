@@ -2,7 +2,7 @@ import { brushColor, colorInicial,
          provinceData, waterColor, state } from "./state.js";
 import { updateBaseMapColor, addBorders,
          renderFromBase }                      from "./provinces.js";
-
+import { createPicker, loadEU4Lists } from "./acordeones.js";
 // =======================
 // SISTEMA DE PAÍSES
 // countries: hex -> { name, color:[r,g,b], flag, locked }
@@ -194,8 +194,12 @@ export function showProvinceAndCountryInfo(provinceId = state.pinnedProvince) {
 
     const ProvinceIdEl = document.getElementById("ProvinceId");
     const ProvinceNameEl = document.getElementById("ProvinceName");
-    const ProvinceRGOEl = document.getElementById("ProvinceRGO");
-    const ProvincePopulationEl = document.getElementById("ProvincePopulation");
+
+    const ProvinceBaseTaxEl = document.getElementById("ProvinceBaseTax");
+    const ProvinceBaseProductionEl = document.getElementById("ProvinceBaseProduction");
+    const ProvinceBaseManpowerEl = document.getElementById("ProvinceBaseManpower");
+    const ProvinceDevelopmentEl = document.getElementById("ProvinceDevelopment");
+
     const ProvinceIsWaterEl = document.getElementById("ProvinceIsWater");
     const CountryLockedEl = document.getElementById("CountryLocked");
     const CountryNameEl = document.getElementById("CountryName");
@@ -214,10 +218,17 @@ export function showProvinceAndCountryInfo(provinceId = state.pinnedProvince) {
 
     ProvinceIdEl.textContent = pd.id;
     ProvinceNameEl.value = pd.name;
-    ProvinceRGOEl.value = pd.RGO ?? "";
-    ProvincePopulationEl.value = pd.POP ?? "";
+    tradeGoodsPicker.setValue(pd.tradeGoods);
+    ProvinceBaseTaxEl.value = pd.baseTax ?? 0;
+    ProvinceBaseProductionEl.value = pd.baseProduction ?? 0;
+    ProvinceBaseManpowerEl.value = pd.baseManpower ?? 0;
+    ProvinceDevelopmentEl.textContent = pd.development ?? 0;
+    religionPicker.setValue(pd.religion);
+    culturePicker.setValue(pd.culture);
     CountryNameEl.value = countryName;
     CountryColorEl.value = hex;
+
+
 
     // El "Es agua" de la provincia está ligado al país al que pertenece:
     //   - Si el color de la provincia es el color de agua → es agua.
@@ -232,12 +243,15 @@ export function showProvinceAndCountryInfo(provinceId = state.pinnedProvince) {
     ProvinceNameEl.onchange = () => {
         pd.name = ProvinceNameEl.value.trim() || `Provincia ${pd.id}`;
     };
-    ProvinceRGOEl.onchange = () => {
-        pd.RGO = parseInt(ProvinceRGOEl.value) || 0;
-    };
-    ProvincePopulationEl.onchange = () => {
-        pd.POP = parseInt(ProvincePopulationEl.value) || 0;
-    };
+    const toNum = el => Math.max(0, parseInt(el.value) || 0);
+    const refreshDev = () => { ProvinceDevelopmentEl.textContent = pd.development; };
+
+    tradeGoodsPicker.onChange = id => { pd.tradeGoods = id; };
+    ProvinceBaseTaxEl.onchange = () => { pd.baseTax = toNum(ProvinceBaseTaxEl); refreshDev(); };
+    ProvinceBaseProductionEl.onchange = () => { pd.baseProduction = toNum(ProvinceBaseProductionEl); refreshDev(); };
+    ProvinceBaseManpowerEl.onchange = () => { pd.baseManpower = toNum(ProvinceBaseManpowerEl); refreshDev(); };
+    religionPicker.onChange = id => { pd.religion = id; };
+    culturePicker.onChange = id => { pd.culture = id; };
 
     ProvinceIsWaterEl.onchange = () => {
         if (countryLocked) {
@@ -323,6 +337,17 @@ document.getElementById("CountryFlag").addEventListener("change", function() {
     };
     reader.readAsDataURL(file);
 });
+
+// ---- desplegables de bien comercial, religión y cultura ----
+const tradeGoodsPicker = createPicker(document.getElementById("ProvinceTradeGoods"), "imgs/tradegoods");
+const religionPicker   = createPicker(document.getElementById("ProvinceReligion"),   "imgs/religions");
+const culturePicker    = createPicker(document.getElementById("ProvinceCulture"),    null);
+
+loadEU4Lists().then(lists => {
+    tradeGoodsPicker.setItems(lists.tradeGoods);
+    religionPicker.setItems(lists.religions);
+    culturePicker.setItems(lists.cultures);
+}).catch(err => console.warn("No se pudo cargar eu4_lists.json:", err));
 
 function changeCountryFlag(CountryFlagPreviewEl, CountryFlagEl, hex) {
     const file = CountryFlagEl.files[0];

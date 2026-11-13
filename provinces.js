@@ -6,7 +6,7 @@ import{ state, waterLayers,
         provinceData,
         colorInicial, colorResaltado,
         provinceMapOpacity, setProvinceMapOpacity,
-        nextProvinceId, bumpProvinceId, brushColor }             from "./state.js";
+        nextProvinceId, bumpProvinceId, brushColor, Province }             from "./state.js";
 import{ timerStart, timerEnd, memoryStart, memoryEnd, memoryReport } from "./utils.js";
 import{ countries, rgbToHex }                                         from "./countries.js";
 import{ ToolStates, updateMapPreview }                                from "./ui.js";
@@ -31,6 +31,8 @@ let borderCache = new Set(); // antes era Int32Array — Set permite borrar índ
 // Registra la memoria antes/después de operaciones pesadas.
 function memBefore(op)  { memoryStart(op); }
 function memAfter(op)   { memoryEnd(op); memoryReport(op); }
+
+
 
 // =======================
 // CAPAS DE AGUA
@@ -122,16 +124,8 @@ export function buildProvinceData() {
     if (!colorToProvince[oceanKey]) {
         oceanId = bumpProvinceId();
         colorToProvince[oceanKey] = oceanId;
-        provinceData[oceanId] = {
-            id:         oceanId,
-            colorKey:   oceanKey,
-            owner:      null,
-            name:       "Océano",
-            RGO:        0,
-            POP:        0,
-            paintColor: [...waterColor.rgb],
-            isWater:    true,
-        };
+        provinceData[oceanId] = Province.ocean(oceanId, oceanKey);
+
         // Marcar píxeles de océano en el array plano Uint32 (índice = i/4, valor = 0 = océano)
         // Cada posición en provincePixelIndices corresponde a un píxel (i/4)
         if (state.provincePixelIndices) {
@@ -159,18 +153,7 @@ export function buildProvinceData() {
         if (!id) {
             id = bumpProvinceId();
             colorToProvince[key] = id;
-            if (!state.loaded) {
-                provinceData[id] = {
-                    id:         id,
-                    colorKey:   key,
-                    owner:      null,
-                    name:       `Provincia ${id}`,
-                    RGO:        0,
-                    POP:        0,
-                    paintColor: [...colorInicial],
-                    isWater:    false,
-                };
-            }
+            if (!state.loaded) provinceData[id] = new Province({ id, colorKey: key });
         }
 
         // Marcar este píxel como perteneciente a 'id' en el array plano Uint32
@@ -286,22 +269,23 @@ export function createBaseMap() {
         }
 
         const pd = provinceData[provinceId];
-        if (pd.isWater && provinceId !== colorToProvince[-1]) {
+/*        if (pd.isWater && provinceId !== colorToProvince[-1]) {
             console.log("[CREATE_BASEMAP] Provincia agua pintada con 0.6x opacity - provinciaId:", provinceId, "isWater:", pd.isWater, "opacity:", Math.round(provinceMapOpacity * 0.6 * 255));
-        }
+        }*/
 /*
         if (provinceData[provinceId].isOcean) {
             data[i + 3] = 0;  // mantener transparente
             continue;
         }
 */
-        const color = provinceData[provinceId].paintColor;
+
+        const province = provinceData[provinceId];
+        const color = province?.paintColor ?? [0, 0, 0];
+        
         data[i]     = color[0];
         data[i + 1] = color[1];
         data[i + 2] = color[2];
-        data[i + 3] = provinceData[provinceId].isWater
-            ? Math.round(provinceMapOpacity * 0.6 * 255)
-            : Math.round(provinceMapOpacity * 255);
+        data[i + 3] = Math.round(provinceMapOpacity * 255);
     }
 
     timerEnd("createBaseMap");
@@ -476,9 +460,7 @@ export function updateBaseMapColor(provinceId) {
     state.canvasDirty = true;
     const data  = state.baseCleanImageData.data;
     const color = provinceData[provinceId].paintColor;
-    const alpha = provinceData[provinceId].isWater
-        ? Math.round(provinceMapOpacity * 0.6 * 255)
-        : Math.round(provinceMapOpacity * 255);
+    const alpha = Math.round(provinceMapOpacity * 255);
 
     // Actualizar píxeles usando provincePixelIndices plano (Uint32Array).
     // provincePixelIndices[posición] = ID de la provincia. Buscamos todas las

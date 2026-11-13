@@ -522,7 +522,7 @@ label:hover { background-color: #eee; }
 .info-row {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 0px;
     margin-bottom: 6px;
 }
 .info-row:last-child { margin-bottom: 0; }
@@ -569,6 +569,66 @@ label:hover { background-color: #eee; }
     margin-bottom: 10px;
     transition: border-color 0.15s;
 }
+
+/* ---- Provincia: dos columnas, a la mitad ---- */
+.info-columns { display: flex; gap: 12px; }
+.info-col { flex: 1 1 0; min-width: 0; }
+.info-col--dev { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+
+/* columna izquierda: etiqueta arriba, control abajo */
+.info-col .info-row:has(.picker),
+.info-col .info-row:has(.info-input) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+}
+.info-col .info-row:has(.picker) .info-label,
+.info-col .info-row:has(.info-input) .info-label { width: auto; }
+.info-col .info-row .info-input { flex: none; width: 100%; box-sizing: border-box; }
+
+/* columna derecha: desarrollo */
+.dev-row { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; }
+.othersidebar .info-section .dev-icon { width: 20px; height: 20px; flex: none; object-fit: contain; }
+.dev-row .info-input,
+.dev-row .info-value { flex: 0 0 50%; width: 50%; min-width: 0; text-align: center; box-sizing: border-box; }
+.dev-row input[type=number] { -moz-appearance: textfield; appearance: textfield; padding-left: 3px; padding-right: 3px; }
+.dev-row input[type=number]::-webkit-inner-spin-button,
+.dev-row input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* desplegables */
+.picker { position: relative; width: 100%; min-width: 0; }
+.picker-button {
+    width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 6px;
+    padding: 3px 7px; cursor: pointer; text-align: left;
+    font-family: inherit; font-size: 0.78rem; color: #e8e6d8;
+    background: #252538; border: 1px solid rgba(255,255,255,0.07); border-radius: 4px;
+    box-sizing: border-box;
+}
+.picker-button:hover,
+.picker-button:focus-visible { border-color: #c8a84b; outline: none; }
+.picker-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.othersidebar .info-section .picker-icon { width: 16px; height: 16px; flex: none; object-fit: contain; }
+
+.picker-panel {
+    position: absolute; z-index: 50; left: 0; top: 100%; margin-top: 2px;
+    min-width: 100%; width: max-content; max-width: 220px;
+    background: #1f1f30; border: 1px solid rgba(255,255,255,0.12); border-radius: 4px;
+    box-shadow: 0 6px 16px rgba(0,0,0,.5);
+}
+.picker-panel[hidden] { display: none; }
+.picker-search {
+    width: 100%; box-sizing: border-box; padding: 4px 7px;
+    font-family: inherit; font-size: 0.78rem; color: #e8e6d8;
+    background: transparent; border: 0; border-bottom: 1px solid rgba(255,255,255,0.1); outline: none;
+}
+.picker-list { list-style: none; margin: 0; padding: 0; max-height: 220px; overflow-y: auto; }
+.picker-item {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 3px 7px; cursor: pointer; font-size: 0.78rem; color: #e8e6d8;
+}
+.picker-item:hover { background: rgba(255,255,255,.08); }
+.picker-item--active { background: rgba(200,168,75,.18); }
+
 .flag-wrapper:hover {
     border-color: #c8a84b;
 }
@@ -863,4 +923,152 @@ label:hover { background-color: #eee; }
     cursor: pointer;
     width: 100%;
     height: 100%;
+}
+/* ════════════════════════════════════════
+   PANEL FLOTANTE DE AJUSTE
+   (reemplaza el bloque de la demo al final de style.css)
+════════════════════════════════════════ */
+#panel-ajuste {
+    position: fixed;
+    z-index: 1040;                 /* arriba del navbar fixed-top (1030) */
+    width: 320px;
+    min-height: 180px;
+    background: var(--color-bg-sidebar);
+    border: 1px solid var(--color-border-visible);
+    border-radius: 8px;
+    box-shadow: var(--shadow-panel);
+    color: var(--color-text-primary);
+    overflow: hidden;
+}
+#panel-ajuste[hidden] { display: none; }
+ 
+/* La barra de título es la "agarradera" */
+#panel-titulo {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 8px 6px 12px;
+    background: var(--color-bg-navbar);
+    border-bottom: 1px solid var(--color-border-subtle);
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: grab;
+    user-select: none;
+    touch-action: none;
+}
+#panel-titulo.arrastrando { cursor: grabbing; }
+ 
+#panel-cerrar {
+    background: none;
+    border: none;
+    padding: 2px 6px;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+}
+#panel-cerrar:hover { color: var(--color-text-primary); }
+ 
+#panel-cuerpo { padding: 12px; }
+ 
+/* El `label` global del proyecto (borde claro, hover #eee) no debe afectar al panel */
+#panel-ajuste label {
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    transition: none;
+}
+#panel-ajuste label:hover { background: none; }
+
+
+/* Interfaz de Distorsionator */
+
+#distorsionator-ui {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+#distorsionator-ui .dist-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+#distorsionator-ui button,
+#distorsionator-ui select {
+    padding: 5px 9px;
+    max-width: 100%;
+}
+
+#distorsionator-ui select {
+    min-width: 0;
+    flex: 1;
+}
+
+#distorsionator-ui .dist-active {
+    outline: 2px solid #c8a84b;
+}
+
+#distorsionator-ui .dist-status {
+    font-size: 13px;
+    overflow-wrap: anywhere;
+}
+
+#distorsionator-ui .dist-point {
+    padding: 7px;
+    margin-bottom: 5px;
+    border: 1px solid #555;
+    cursor: pointer;
+    overflow-wrap: anywhere;
+}
+
+#distorsionator-ui .dist-point.selected {
+    border-color: #c8a84b;
+}
+
+#distorsionator-ui pre {
+    max-height: 220px;
+    overflow: auto;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+
+/* Marcadores de los puntos de referencia */
+
+#distorsionator-markers {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1050;
+    overflow: hidden;
+}
+
+.dist-marker {
+    position: fixed;
+    width: 13px;
+    height: 13px;
+    border: 2px solid white;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 0 1px black;
+}
+
+.dist-marker.source {
+    background: #e34b4b;
+}
+
+.dist-marker.target {
+    background: #48b5ff;
+}
+
+.dist-marker span {
+    position: absolute;
+    left: 10px;
+    top: -10px;
+    padding: 1px 4px;
+    background: #111;
+    color: white;
+    font: 12px sans-serif;
+    white-space: nowrap;
 }

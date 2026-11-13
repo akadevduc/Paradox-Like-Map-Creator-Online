@@ -1,6 +1,8 @@
 import { camera, handleZoom } from "./camera.js";
 import { canvas } from "./main.js";
 
+console.log("[References] Módulo cargado");
+
 export const references = []; // orden de dibujado: el último queda por encima
 
 const MAX_SIDE = 4096; // tope al cargar: una imagen decodificada ocupa ancho*alto*4 bytes
@@ -32,18 +34,41 @@ async function makeThumbUrl(bitmap, maxSide = 200) {
 }
 
 export function initReferences(onChange) {
-    const input    = document.getElementById("AddRefImage");
+    console.log("[References] initReferences() ejecutado");
+
+    const input = document.getElementById("AddRefImage");
+
+    console.log("[References] Input encontrado:", input);
+
     const list     = document.getElementById("RefList");
     const template = document.getElementById("RefItemTemplate");
 
     input.addEventListener("change", async () => {
-        const file = input.files[0];
+            console.log("[References] Evento change disparado");
+
+            const file = input.files[0];
+            console.log("[References] Archivo seleccionado:", file);
+            
         input.value = ""; // el input queda libre para agregar la siguiente
         if (!file) return;
 
         let bitmap;
         try {
+            const original = await createImageBitmap(file);
+
+            console.table({
+                archivo: file.name,
+                "Peso original": `${(file.size / 1024 / 1024).toFixed(2)} MB`,
+                "Resolución original": `${original.width} × ${original.height}`
+            });
+
+            original.close();
+
             bitmap = await loadBitmap(file);
+
+            console.table({
+                "Resolución cargada": `${bitmap.width} × ${bitmap.height}`
+            });
         } catch (err) {
             console.error("No se pudo decodificar la imagen:", err);
             return;
@@ -51,7 +76,8 @@ export function initReferences(onChange) {
 
         const ref = {
             bitmap,
-            x: 0, y: 0, scale: 1,      // en coordenadas del mapa (los usamos en el paso de dibujado)
+            imageUrl: URL.createObjectURL(file),
+            x: 0, y: 0, scale: 1,
             opacity: 1,
             visible: true,
             pixelated: false,
@@ -75,7 +101,7 @@ export function initReferences(onChange) {
         const element = fragment.querySelector(".reference-image");
 
         const img = element.querySelector("img");
-        img.src = ref.thumbUrl;
+        img.src = ref.imageUrl;
 
         referencesContainer.appendChild(element);
         enableImageMovement(element, ref);
@@ -96,6 +122,7 @@ export function initReferences(onChange) {
             if (i !== -1) references.splice(i, 1);
             ref.bitmap.close();                  // libera la memoria de la imagen
             URL.revokeObjectURL(ref.thumbUrl);
+            URL.revokeObjectURL(ref.imageUrl);
             el.remove();
             element.remove();   
             onChange();
@@ -182,6 +209,13 @@ function enableImageMovement(element, ref) {
         element._worldY = (parseFloat(element.style.top) || 100 - rect.top) / camera.zoom + camera.y;
 
         updatePosition();
+
+        console.table({
+            "Resolución interna": `${img.naturalWidth} × ${img.naturalHeight}`,
+            "Tamaño visible": `${img.getBoundingClientRect().width.toFixed(0)} × ${img.getBoundingClientRect().height.toFixed(0)} CSS px`,
+            "Zoom cámara": camera.zoom,
+            "Escala visible": `${(img.getBoundingClientRect().width / img.naturalWidth).toFixed(2)}×`
+        });
     }
 
     if (img.complete && img.naturalWidth > 0) {

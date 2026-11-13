@@ -29,6 +29,15 @@
 
             <button class="btn-toolbar" id="OptionsButton">Options</button>
 
+            <button class="btn-toolbar" data-ajustar="">Ajustar Imagen</button>
+
+            <button class="btn-toolbar" id="loadSaveButton">Load Save</button>
+
+            <div class="input_container">
+                <label for="loadSaveMap" class="btn-toolbar">Browse Files</label>
+                <input id="loadSaveMap" style="display:none;" type="file">
+            </div>
+
         </div>
 
         <!-- fila inferior-->
@@ -79,7 +88,12 @@
         <div class="popup-content">
             <h3>Opciones</h3>
 
-            <button class="btn-toolbar" id="ChangeToGFMButton">Change to GFM</button>
+            <button class="btn-toolbar" id="ChangeToStockButton">Change to Stock Map</button>
+            <button class="btn-toolbar" id="ChangeToGFMButton">Change to Victoria 2 GFM</button>
+            <button class="btn-toolbar" id="ChangeToEU4Button">Change to Europa Universalis 4</button>
+
+
+
             <span class="text-nowrap">Color del Agua:</span>
             <input type="color" id="waterColor" class="water-color-input" value="#9591df">
             <div class="opacity-control">
@@ -206,25 +220,52 @@
                 <li class="info-section">
                     <span class="info-section__title">Provincia</span>
 
-                    <div class="info-row">
-                        <span class="info-label">ID</span>
-                        <span id="ProvinceId" class="info-value">—</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">Nombre</span>
-                        <input id="ProvinceName" class="info-input" type="text" placeholder="—">
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">RGO</span>
-                        <input id="ProvinceRGO" class="info-input" type="text" placeholder="—">
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">Población</span>
-                        <input id="ProvincePopulation" class="info-input" type="text" placeholder="—">
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">Es agua</span>
-                        <input id="ProvinceIsWater" type="checkbox">
+                    <div class="info-columns">
+                        <div class="info-col">
+                            <div class="info-row">
+                                <span class="info-label">ID</span>
+                                <span id="ProvinceId" class="info-value">—</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Nombre</span>
+                                <input id="ProvinceName" class="info-input" type="text" placeholder="—">
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Bien comercial</span>
+                                <div id="ProvinceTradeGoods"></div>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Religión</span>
+                                <div id="ProvinceReligion"></div>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Cultura</span>
+                                <div id="ProvinceCulture"></div>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Es agua</span>
+                                <input id="ProvinceIsWater" type="checkbox">
+                            </div>
+                        </div>
+
+                        <div class="info-col info-col--dev">
+                            <div class="dev-row" title="Impuestos">
+                                <img class="dev-icon" src="imgs/icons/tax.png" alt="Impuestos">
+                                <input id="ProvinceBaseTax" class="info-input" type="number" min="0" placeholder="—">
+                            </div>
+                            <div class="dev-row" title="Producción">
+                                <img class="dev-icon" src="imgs/icons/production.png" alt="Producción">
+                                <input id="ProvinceBaseProduction" class="info-input" type="number" min="0" placeholder="—">
+                            </div>
+                            <div class="dev-row" title="Manpower">
+                                <img class="dev-icon" src="imgs/icons/manpower.png" alt="Manpower">
+                                <input id="ProvinceBaseManpower" class="info-input" type="number" min="0" placeholder="—">
+                            </div>
+                            <div class="dev-row" title="Desarrollo total">
+                                <img class="dev-icon" src="imgs/icons/development.png" alt="Desarrollo total">
+                                <span id="ProvinceDevelopment" class="info-value">—</span>
+                            </div>
+                        </div>
                     </div>
                 </li>
 
@@ -240,22 +281,107 @@
 
     <canvas id="mapCanvas" width="800" height="600"></canvas>
     
+
+    
     <div id="references">
         <template id="referenceImg">
             <div class="reference-image">
                 <img src="" alt="Referencia">
+
                 <div class="resizeButtons">
-                    <button class="ref-resize ref-resize-nw">↖️</button>
-                    <button class="ref-resize ref-resize-ne">↗️</button>
-                    <button class="ref-resize ref-resize-sw">↙️</button>
-                    <button class="ref-resize ref-resize-se">↘️</button>
+                    <button type="button" class="ref-resize ref-resize-nw">↖️</button>
+                    <button type="button" class="ref-resize ref-resize-ne">↗️</button>
+                    <button type="button" class="ref-resize ref-resize-sw">↙️</button>
+                    <button type="button" class="ref-resize ref-resize-se">↘️</button>
                 </div>
             </div>
         </template>
-
     </div>
+
+    <aside id="panel-ajuste"
+        role="dialog"
+        aria-label="Ajustar imagen de referencia"
+        hidden>
+
+        <div id="panel-titulo">
+            <span id="panel-nombre">Ajustar</span>
+            <button type="button" id="panel-cerrar" aria-label="Cerrar">✕</button>
+        </div>
+
+        <div id="panel-cuerpo">
+            <div id="distorsionator-ui">
+
+                <div>
+                    <label for="dist-image">Imagen original</label>
+                    <div class="dist-row">
+                        <select id="dist-image"></select>
+                        <button type="button" id="dist-refresh">Actualizar</button>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="dist-status" id="dist-instructions"></div>
+                    <div class="dist-row">
+                        <select id="dist-role">
+                            <option value="m1">Meridiano 1</option>
+                            <option value="m2">Meridiano 2</option>
+                            <option value="p1">Paralelo 1</option>
+                            <option value="p2">Paralelo 2</option>
+                            <option value="a">Referencia (sin línea)</option>
+                        </select>
+                    </div>
+                    <div class="dist-row">
+                        <button type="button" id="dist-source">Punto en imagen</button>
+                        <button type="button" id="dist-target">Punto en mapa</button>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="dist-zoom">Zoom de la imagen</label>
+                    <input type="range" id="dist-zoom" min="100" max="500" step="25" value="100">
+
+                    <div id="dist-preview" style="display:none; overflow:auto; max-height:55vh; border:1px solid #555; margin-top:6px;">
+                        <div id="dist-preview-inner" style="position:relative; width:100%; line-height:0;">
+                            <img id="dist-preview-img" alt="Imagen a ajustar" draggable="false"
+                                 style="display:block; width:100%; height:auto; cursor:crosshair; user-select:none;">
+                            <div id="dist-preview-markers"
+                                 style="position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dist-row">
+                    <button type="button" id="dist-delete">Eliminar punto</button>
+                    <button type="button" id="dist-export">Exportar JSON</button>
+                    
+                    <button type="button" id="dist-warp">
+                        Generar imagen rectangular
+                    </button>
+
+                    <div id="dist-warp-result"></div>
+                </div>
+
+                <div id="dist-status" class="dist-status"></div>
+
+                <!-- JavaScript genera las filas de puntos -->
+                <div id="dist-points"></div>
+
+                <!-- JavaScript muestra el JSON exportado -->
+                <pre id="dist-output"></pre>
+
+            </div>
+        </div>
+    </aside>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
     <script type="module" src="main.js"></script>
+    <script type="module" src="distorsionator.js"></script>
+    <script>
+        document.querySelectorAll(".dev-icon").forEach(img => {
+            img.addEventListener("error", () => {
+                if (!img.src.endsWith("imgs/placeholder.png")) img.src = "imgs/placeholder.png";
+            });
+        });
+    </script>
 </body>
 </html>

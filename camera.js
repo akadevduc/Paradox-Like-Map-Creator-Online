@@ -151,6 +151,7 @@ export function initCamera(canvas, utils) {
 
                     provinceData[provinceId].paintColor = [...brushColor.rgb];
 
+
                     if (arraysEqual(brushColor.rgb, waterColor.rgb)) {
                         provinceData[provinceId].isWater = true;
                     } else {
@@ -168,6 +169,7 @@ export function initCamera(canvas, utils) {
                     } else {
                         renderFromBase();
                     }
+
                 });
             });
         });
